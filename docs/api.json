@@ -1,0 +1,443 @@
+{
+  "generatedBy": "scripts/build-api-docs.ts",
+  "indexFile": "src/index.ts",
+  "irVersion": 1,
+  "toolVersion": "0.1.0",
+  "exports": [
+    {
+      "name": "defineConfig",
+      "file": "src/config.ts",
+      "line": 16,
+      "declKind": "function",
+      "signature": "(c: Partial<MetonymConfig>): Partial<MetonymConfig>",
+      "description": "Identity function for typing aid when defining config in code.\nEnables TypeScript intellisense and validation without runtime overhead.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "generate",
+      "file": "src/emit/generate.ts",
+      "line": 415,
+      "declKind": null,
+      "signature": "(docs: DocumentationSet, opts?: { jsxImportSource?: string; }): GeneratedTest[]",
+      "description": "Generate test files from a DocumentationSet.\nOne GeneratedTest per Document with executable examples.",
+      "tags": {
+        "param": [
+          "docs - The documentation set to generate tests from",
+          "opts - Optional generation options (e.g., jsxImportSource for tsx/jsx examples)"
+        ]
+      },
+      "typeOnly": false
+    },
+    {
+      "name": "assembleDocumentationSet",
+      "file": "src/extract.ts",
+      "line": 78,
+      "declKind": "function",
+      "signature": "(root: string, parts: FilePart[]): DocumentationSet",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "extract",
+      "file": "src/extract.ts",
+      "line": 177,
+      "declKind": "function",
+      "signature": "(project: Project): Promise<DocumentationSet>",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "toMermaid",
+      "file": "src/graph/emit.ts",
+      "line": 144,
+      "declKind": "function",
+      "signature": "(docs: DocumentationSet): string",
+      "description": "Serialize graph to Mermaid flowchart format.\nSanitizes node ids for Mermaid compatibility.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "checkCoverage",
+      "file": "src/graph/queries.ts",
+      "line": 334,
+      "declKind": "function",
+      "signature": "(docs: DocumentationSet, gates: NonNullable<MetonymConfig[\"coverage\"]>): CoverageGateResult",
+      "description": "Check documentation coverage against configured CI gates.\nReturns structured result with pass/fail status and specific failure messages.\n\nRules:\n- minDocumented: percentage of symbols with documentation (documented/total*100)\n- minExamples: percentage of symbols with executable examples (withExamples/total*100)\n- failOnUndocumented: fail if any export lacks documentation entirely\n- failOnTypeErrors: fail if any example has a type error (deep analysis only)\n\nWhen total symbols is 0, both percentage gates pass.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "coverage",
+      "file": "src/graph/queries.ts",
+      "line": 44,
+      "declKind": "function",
+      "signature": "(docs: DocumentationSet): CoverageReport",
+      "description": "Analyze documentation coverage: which symbols have docs/examples,\nwhich documents have examples. Excludes re-exports from the denominator.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "createExampleIdAllocator",
+      "file": "src/ir/ids.ts",
+      "line": 41,
+      "declKind": "function",
+      "signature": "(file: string): (code: string) => string",
+      "description": "Allocates ids within one file. Create one allocator per extracted document\nand call it for each example in document order.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "DeclKind",
+      "file": "src/ir/types.ts",
+      "line": 101,
+      "declKind": "type",
+      "signature": "\"function\" | \"class\" | \"const\" | \"let\" | \"var\" | \"enum\" | \"type\" | \"interface\" | \"default\" | \"reexport\" | \"unknown\"",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "DEFAULT_CONFIG",
+      "file": "src/ir/types.ts",
+      "line": 291,
+      "declKind": "const",
+      "signature": "{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: \"auto\" | \"shallow\" | \"deep\" | undefined; coverage?: { minDocumented?: number; minExamples?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Diagnostic",
+      "file": "src/ir/types.ts",
+      "line": 90,
+      "declKind": "interface",
+      "signature": "Diagnostic",
+      "description": "A TypeScript compiler diagnostic against one example's authored code.\nPositions are relative to `example.code`, same convention as HoverInfo.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Document",
+      "file": "src/ir/types.ts",
+      "line": 32,
+      "declKind": "interface",
+      "signature": "Document",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "DocumentationSet",
+      "file": "src/ir/types.ts",
+      "line": 141,
+      "declKind": "interface",
+      "signature": "DocumentationSet",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "DocumentOrigin",
+      "file": "src/ir/types.ts",
+      "line": 30,
+      "declKind": "type",
+      "signature": "\"readme\" | \"markdown\" | \"mdx\" | \"jsdoc\" | \"source\"",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Example",
+      "file": "src/ir/types.ts",
+      "line": 47,
+      "declKind": "interface",
+      "signature": "Example",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "ExampleKind",
+      "file": "src/ir/types.ts",
+      "line": 40,
+      "declKind": "type",
+      "signature": "\"assertion\" | \"no-run\" | \"throws\" | \"pending\" | \"ignored\"",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "ExampleResult",
+      "file": "src/ir/types.ts",
+      "line": 201,
+      "declKind": "interface",
+      "signature": "ExampleResult",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "ExampleStatus",
+      "file": "src/ir/types.ts",
+      "line": 187,
+      "declKind": "type",
+      "signature": "\"pending\" | \"passed\" | \"failed\" | \"skipped\"",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "FailureInfo",
+      "file": "src/ir/types.ts",
+      "line": 189,
+      "declKind": "interface",
+      "signature": "FailureInfo",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "GeneratedTest",
+      "file": "src/ir/types.ts",
+      "line": 176,
+      "declKind": "interface",
+      "signature": "GeneratedTest",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "HoverInfo",
+      "file": "src/ir/types.ts",
+      "line": 73,
+      "declKind": "interface",
+      "signature": "HoverInfo",
+      "description": "Hover info for one identifier occurrence in an example's authored code.\nPositions are relative to `example.code`: `start` is a 0-indexed byte\noffset; `line`/`column` are 1-indexed within the snippet.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "IR_VERSION",
+      "file": "src/ir/types.ts",
+      "line": 9,
+      "declKind": "const",
+      "signature": "1",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "MetonymConfig",
+      "file": "src/ir/types.ts",
+      "line": 256,
+      "declKind": "interface",
+      "signature": "MetonymConfig",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Position",
+      "file": "src/ir/types.ts",
+      "line": 16,
+      "declKind": "interface",
+      "signature": "Position",
+      "description": "line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Project",
+      "file": "src/ir/types.ts",
+      "line": 299,
+      "declKind": "interface",
+      "signature": "Project",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Relation",
+      "file": "src/ir/types.ts",
+      "line": 132,
+      "declKind": "type",
+      "signature": "{ kind: \"contains\"; from: string; to: string; } | { kind: \"documents\"; from: string; to: string; } | { kind: \"owns\"; from: string; to: string; } | { kind: \"imports\"; from: string; to: string; } | { kind: \"references\"; from: string; to: string; } | { kind: \"calls\"; from: string; to: string; } | { kind: \"generates\"; from: string; to: string; }",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "RenderedFile",
+      "file": "src/ir/types.ts",
+      "line": 231,
+      "declKind": "interface",
+      "signature": "RenderedFile",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "Renderer",
+      "file": "src/ir/types.ts",
+      "line": 246,
+      "declKind": "interface",
+      "signature": "Renderer<TOptions>",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "RenderOptions",
+      "file": "src/ir/types.ts",
+      "line": 241,
+      "declKind": "interface",
+      "signature": "RenderOptions",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "RenderResult",
+      "file": "src/ir/types.ts",
+      "line": 237,
+      "declKind": "interface",
+      "signature": "RenderResult",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "RunResult",
+      "file": "src/ir/types.ts",
+      "line": 212,
+      "declKind": "interface",
+      "signature": "RunResult",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "SidecarEntry",
+      "file": "src/ir/types.ts",
+      "line": 159,
+      "declKind": "interface",
+      "signature": "SidecarEntry",
+      "description": "Line invariant: every example body line maps 1:1 into the generated file.\ndocLine = entry.docCodeStartLine + (genLine - entry.genCodeStartLine).\nImport statements are rewritten in place, one line each, preserving count.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "SidecarMap",
+      "file": "src/ir/types.ts",
+      "line": 169,
+      "declKind": "interface",
+      "signature": "SidecarMap",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "SourceLocation",
+      "file": "src/ir/types.ts",
+      "line": 22,
+      "declKind": "interface",
+      "signature": "SourceLocation",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "SymbolInfo",
+      "file": "src/ir/types.ts",
+      "line": 114,
+      "declKind": "interface",
+      "signature": "SymbolInfo",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "TOOL_NAME",
+      "file": "src/ir/types.ts",
+      "line": 10,
+      "declKind": "const",
+      "signature": "\"metonym\"",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "TOOL_VERSION",
+      "file": "src/ir/types.ts",
+      "line": 11,
+      "declKind": "const",
+      "signature": "\"0.1.0\"",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "parseInfoString",
+      "file": "src/parse/info.ts",
+      "line": 35,
+      "declKind": "function",
+      "signature": "(info: string): InfoString",
+      "description": "Parse a fence info string into language, example kind, and attributes.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "extractJsdoc",
+      "file": "src/parse/jsdoc.ts",
+      "line": 46,
+      "declKind": "function",
+      "signature": "(source: string, opts: { file: string; languages?: string[]; blocks?: JsdocBlock[]; lines?: string[]; lineOffsets?: number[]; }): ExtractJsdocResult",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "extractMarkdown",
+      "file": "src/parse/markdown.ts",
+      "line": 35,
+      "declKind": "function",
+      "signature": "(text: string, opts: { file: string; languages?: string[]; }): ExtractMarkdownResult",
+      "description": "Extract fenced code examples from Markdown text, with precise source\nlocations. Pure — no execution.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "scanSymbols",
+      "file": "src/parse/symbols.ts",
+      "line": 36,
+      "declKind": "function",
+      "signature": "(file: string, code: string): SymbolInfo[]",
+      "description": "Scan a source file's exports: names, positions, and declaration kinds.",
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "run",
+      "file": "src/run/run.ts",
+      "line": 19,
+      "declKind": "function",
+      "signature": "(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; }): Promise<RunResult>",
+      "description": null,
+      "tags": null,
+      "typeOnly": false
+    },
+    {
+      "name": "scan",
+      "file": "src/scan/scan.ts",
+      "line": 13,
+      "declKind": "function",
+      "signature": "(opts?: { root?: string; config?: Partial<MetonymConfig>; }): Promise<Project>",
+      "description": "Scan a project root for documentation and source files.\n\nUses Bun.Glob to enumerate include patterns, filters via exclude patterns,\nand classifies files into docFiles (.md/.markdown) and sourceFiles (.ts/.tsx/.js/.jsx/.mts/.cts/.mjs/.cjs).\nNever includes files under the configured outDir.\nReturns sorted lists (posix separators, repo-relative, no leading ./).",
+      "tags": null,
+      "typeOnly": false
+    }
+  ]
+}

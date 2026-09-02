@@ -1,0 +1,20 @@
+{
+  "name": "example-jsx",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./src/jsx-dev-runtime.ts"
+  },
+  "dependencies": {
+    "metonym": "file:../../package"
+  },
+  "scripts": {
+    "check": "metonym check"
+  },
+  "metonym": {
+    "jsxImportSource": "example-jsx"
+  }
+}

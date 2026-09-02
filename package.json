@@ -1,0 +1,43 @@
+{
+  "name": "metonym",
+  "version": "0.1.0",
+  "description": "Zero-dependency, Bun-native executable documentation engine",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "metonym": "./src/cli/main.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "typecheck": "tsc6",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write . --unsafe",
+    "knip": "knip-bun",
+    "test": "bun test ./tests",
+    "check": "bun src/cli/main.ts check",
+    "docs": "bun scripts/build-api-docs.ts",
+    "examples": "bun scripts/run-examples.ts",
+    "bench": "bun run bench/parse.bench.ts && bun run bench/pipeline.bench.ts",
+    "bench:parse": "bun run bench/parse.bench.ts",
+    "bench:pipeline": "bun run bench/pipeline.bench.ts",
+    "bench:check": "bun run bench/check.bench.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "@types/bun": "^1.4.0",
+    "knip": "^6.33.0",
+    "mitata": "^1.0.34",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  },
+  "metonym": {
+    "exclude": [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/.metonym/**",
+      "docs/build/**"
+    ]
+  }
+}

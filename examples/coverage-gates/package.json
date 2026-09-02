@@ -1,0 +1,21 @@
+{
+  "name": "example-coverage-gates",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "metonym": "file:../../package"
+  },
+  "scripts": {
+    "coverage": "metonym coverage --check"
+  },
+  "metonym": {
+    "coverage": {
+      "minDocumented": 80,
+      "minExamples": 50
+    }
+  }
+}
