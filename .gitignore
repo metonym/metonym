@@ -1,0 +1,11 @@
+node_modules/
+package/
+.metonym/
+docs/build/
+*.tsbuildinfo
+*.log
+.DS_Store
+*.tgz
+examples/*/bun.lock
+examples/*/bun.lockb
+
