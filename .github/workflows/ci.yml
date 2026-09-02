@@ -23,6 +23,9 @@ jobs:
       - name: Lint and format
         run: bunx biome ci --error-on-warnings
 
+      - name: .github/README.md matches DOCS.md
+        run: diff -q DOCS.md .github/README.md
+
       - name: Unused files and exports
         run: bunx knip
 

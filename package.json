@@ -33,6 +33,11 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "metonym": {
+    "include": [
+      "DOCS.md",
+      "docs/**/*.{md,mdx}",
+      "src/**/*.{ts,tsx,js,jsx}"
+    ],
     "exclude": [
       "**/node_modules/**",
       "**/.git/**",
