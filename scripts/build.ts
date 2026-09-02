@@ -48,7 +48,7 @@ await bundleDts({
 
 for (const [source, extra] of [
   ["DOCS.md", "README.md"],
-  ["LICENSE", "LICENSE"],
+  ["scripts/LICENSE", "LICENSE"],
 ]) {
   const path = join(root, source);
   if (existsSync(path)) {
