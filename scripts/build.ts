@@ -46,8 +46,11 @@ await bundleDts({
   outFile: join(out, "index.d.ts"),
 });
 
-for (const extra of ["README.md", "LICENSE"]) {
-  const path = join(root, extra);
+for (const [source, extra] of [
+  ["DOCS.md", "README.md"],
+  ["LICENSE", "LICENSE"],
+]) {
+  const path = join(root, source);
   if (existsSync(path)) {
     cpSync(path, join(out, extra));
   }

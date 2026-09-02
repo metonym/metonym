@@ -179,7 +179,7 @@ describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);
     expect(exitCode).toBe(0);
-    expect(stderr).toContain("README.md");
+    expect(stderr).toContain("DOCS.md");
     expect(stderr).toMatch(/\d+ passed/);
     expect(stderr).not.toContain("✗");
   });
