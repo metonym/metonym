@@ -47,7 +47,7 @@ await bundleDts({
 });
 
 for (const [source, extra] of [
-  ["DOCS.md", "README.md"],
+  ["src/README.md", "README.md"],
   ["scripts/LICENSE", "LICENSE"],
 ]) {
   const path = join(root, source);

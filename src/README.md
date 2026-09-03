@@ -17,7 +17,7 @@ extracted and executed in CI.
 - Mark APIs that do not exist yet `pending`. They report. They do not fail CI.
 
 Copy-paste recipes for adding metonym to a package live in
-[examples/](examples/).
+[examples/](../examples/).
 
 ## Install
 
@@ -318,7 +318,7 @@ expect(checkCoverage(docs, { minDocumented: 80 }).pass).toBe(true)
 The full pipeline is four verbs. `extract` never executes anything. `run`
 is the only effectful step. Pass `generate`'s output into `run`. Point
 `scan` at a package, not this repo, or `metonym check` re-enters itself.
-See [examples/programmatic-pipeline](examples/programmatic-pipeline/):
+See [examples/programmatic-pipeline](../examples/programmatic-pipeline/):
 
 ```ts no-run
 import { extract, generate, run, scan } from "metonym"
