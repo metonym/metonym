@@ -34,7 +34,7 @@
   },
   "metonym": {
     "include": [
-      "DOCS.md",
+      "src/README.md",
       "docs/**/*.{md,mdx}",
       "src/**/*.{ts,tsx,js,jsx}"
     ],
