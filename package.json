@@ -20,16 +20,16 @@
     "check": "bun src/cli/main.ts check",
     "docs": "bun scripts/build-api-docs.ts",
     "examples": "bun scripts/run-examples.ts",
-    "bench": "bun run bench/parse.bench.ts && bun run bench/pipeline.bench.ts",
-    "bench:parse": "bun run bench/parse.bench.ts",
-    "bench:pipeline": "bun run bench/pipeline.bench.ts",
+    "bench": "ostia bench bench/parse.bench.ts bench/pipeline.bench.ts",
+    "bench:parse": "ostia bench bench/parse.bench.ts",
+    "bench:pipeline": "ostia bench bench/pipeline.bench.ts",
     "bench:check": "bun run bench/check.bench.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",
     "@types/bun": "^1.4.0",
     "knip": "^6.33.0",
-    "mitata": "^1.0.34",
+    "ostia": "^0.1.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "metonym": {

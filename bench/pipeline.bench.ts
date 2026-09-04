@@ -1,10 +1,10 @@
 /**
- * End-to-end mitata benches for scan → extract → generate.
- * Generates each synthetic repo once before run(), then benches the three
- * verbs separately. Does not execute examples.
+ * End-to-end ostia benches for scan → extract → generate.
+ * Generates each synthetic repo once before registration, then benches the
+ * three verbs separately. Does not execute examples.
  */
 
-import { bench, group, run, summary } from "mitata";
+import { group, task } from "ostia";
 import { generate } from "../src/emit/generate";
 import {
   assembleDocumentationSet,
@@ -162,24 +162,12 @@ for (const size of SIZES) {
 
 for (const { size, root, project, docs, parts } of prepared) {
   group(`pipeline ${size}`, () => {
-    summary(() => {
-      bench("scan", async () => {
-        await scan({ root });
-      });
-      bench("extract", async () => {
-        await extract(project);
-      });
-      bench("assemble", () => {
-        assembleDocumentationSet(project.root, parts);
-      });
-      bench("generate", () => {
-        generate(docs);
-      });
-    });
+    task("scan", async () => scan({ root }));
+    task("extract", async () => extract(project));
+    task("assemble", () => assembleDocumentationSet(project.root, parts));
+    task("generate", () => generate(docs));
   });
 }
-
-await run();
 
 console.log("\nphase breakdown (single run, ms):");
 for (const { size, root } of prepared) {
