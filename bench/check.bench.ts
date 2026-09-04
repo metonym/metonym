@@ -2,8 +2,8 @@
  * End-to-end `metonym check` bench: scan → extractCached → generate → runCached.
  * Cold vs warm cache. Executes examples (unlike pipeline.bench.ts).
  *
- * One-off phase timings only. Do not wrap bun test in mitata — M writes
- * thousands of test files and a mitata loop would dominate the machine.
+ * One-off phase timings only. Do not wrap bun test in ostia — M writes
+ * thousands of test files and an ostia loop would dominate the machine.
  *
  * Usage: bun bench/check.bench.ts [S|M]
  */

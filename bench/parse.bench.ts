@@ -1,9 +1,9 @@
 /**
- * In-memory mitata benches for the extract hot path.
+ * In-memory ostia benches for the extract hot path.
  * These run on every doc and source file during extract(); no filesystem.
  */
 
-import { bench, group, run, summary } from "mitata";
+import { group, task } from "ostia";
 import { scanDecls } from "../src/parse/decls";
 import { scanFences } from "../src/parse/fence";
 import {
@@ -68,90 +68,58 @@ const TS = {
 };
 
 group("scanFences", () => {
-  summary(() => {
-    bench("small (2 fences)", () => {
-      scanFences(MD.small);
-    });
-    bench("medium (8 fences)", () => {
-      scanFences(MD.medium);
-    });
-    bench("large (40 fences)", () => {
-      scanFences(MD.large);
-    });
-  });
+  task("small (2 fences)", () => scanFences(MD.small));
+  task("medium (8 fences)", () => scanFences(MD.medium));
+  task("large (40 fences)", () => scanFences(MD.large));
 });
 
 group("extractMarkdown", () => {
-  summary(() => {
-    bench("small (2 fences)", () => {
-      extractMarkdown(MD.small, { file: "small.md" });
-    });
-    bench("medium (8 fences)", () => {
-      extractMarkdown(MD.medium, { file: "medium.md" });
-    });
-    bench("large (40 fences)", () => {
-      extractMarkdown(MD.large, { file: "large.md" });
-    });
-  });
+  task("small (2 fences)", () =>
+    extractMarkdown(MD.small, { file: "small.md" }),
+  );
+  task("medium (8 fences)", () =>
+    extractMarkdown(MD.medium, { file: "medium.md" }),
+  );
+  task("large (40 fences)", () =>
+    extractMarkdown(MD.large, { file: "large.md" }),
+  );
 });
 
 group("extractJsdoc", () => {
-  summary(() => {
-    bench("small (2 functions)", () => {
-      extractJsdoc(TS.small, { file: "small.ts" });
-    });
-    bench("medium (8 functions)", () => {
-      extractJsdoc(TS.medium, { file: "medium.ts" });
-    });
-    bench("large (40 functions)", () => {
-      extractJsdoc(TS.large, { file: "large.ts" });
-    });
-  });
+  task("small (2 functions)", () =>
+    extractJsdoc(TS.small, { file: "small.ts" }),
+  );
+  task("medium (8 functions)", () =>
+    extractJsdoc(TS.medium, { file: "medium.ts" }),
+  );
+  task("large (40 functions)", () =>
+    extractJsdoc(TS.large, { file: "large.ts" }),
+  );
 });
 
 group("extractSourceCpu", () => {
-  summary(() => {
-    for (const [label, source] of [
-      ["small (2 functions)", TS.small],
-      ["medium (8 functions)", TS.medium],
-      ["large (40 functions)", TS.large],
-    ] as const) {
-      bench(label, () => {
-        const file = "mod.ts";
-        const blocks = extractJsdocBlocks(source);
-        extractJsdoc(source, { file, blocks });
-        extractDocComments(source, { file, blocks });
-      });
-    }
-  });
+  for (const [label, source] of [
+    ["small (2 functions)", TS.small],
+    ["medium (8 functions)", TS.medium],
+    ["large (40 functions)", TS.large],
+  ] as const) {
+    task(label, () => {
+      const file = "mod.ts";
+      const blocks = extractJsdocBlocks(source);
+      extractJsdoc(source, { file, blocks });
+      return extractDocComments(source, { file, blocks });
+    });
+  }
 });
 
 group("scanSymbols", () => {
-  summary(() => {
-    bench("small (2 functions)", () => {
-      scanSymbols("small.ts", TS.small);
-    });
-    bench("medium (8 functions)", () => {
-      scanSymbols("medium.ts", TS.medium);
-    });
-    bench("large (40 functions)", () => {
-      scanSymbols("large.ts", TS.large);
-    });
-  });
+  task("small (2 functions)", () => scanSymbols("small.ts", TS.small));
+  task("medium (8 functions)", () => scanSymbols("medium.ts", TS.medium));
+  task("large (40 functions)", () => scanSymbols("large.ts", TS.large));
 });
 
 group("scanDecls", () => {
-  summary(() => {
-    bench("small (2 functions)", () => {
-      scanDecls(TS.small);
-    });
-    bench("medium (8 functions)", () => {
-      scanDecls(TS.medium);
-    });
-    bench("large (40 functions)", () => {
-      scanDecls(TS.large);
-    });
-  });
+  task("small (2 functions)", () => scanDecls(TS.small));
+  task("medium (8 functions)", () => scanDecls(TS.medium));
+  task("large (40 functions)", () => scanDecls(TS.large));
 });
-
-await run();
