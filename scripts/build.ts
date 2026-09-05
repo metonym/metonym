@@ -12,7 +12,7 @@ import { bundleDts } from "./bundle-dts";
 const root = join(import.meta.dir, "..");
 const out = join(root, "package");
 
-const STRIP = new Set(["devDependencies", "scripts", "files"]);
+const STRIP = new Set(["devDependencies", "scripts", "files", "metonym"]);
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
@@ -60,7 +60,7 @@ for (const key of STRIP) {
   delete pkg[key];
 }
 
-pkg.bin = { metonym: "./cli.js" };
+pkg.bin = { metonym: "cli.js" };
 pkg.main = "./index.js";
 pkg.module = "./index.js";
 pkg.types = "./index.d.ts";

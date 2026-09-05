@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "bin": {
-    "metonym": "./src/cli/main.ts"
+    "metonym": "src/cli/main.ts"
   },
   "exports": {
     ".": "./src/index.ts"
