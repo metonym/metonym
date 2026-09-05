@@ -24,13 +24,13 @@ jobs:
         run: bunx biome ci --error-on-warnings
 
       - name: Unused files and exports
-        run: bunx knip
-
-      - name: Build
-        run: bun run build
+        run: bun run knip
 
       - name: Typecheck
         run: bun run typecheck
+
+      - name: Build
+        run: bun run build
 
       - name: Run tests
         run: bun test ./tests
