@@ -23,12 +23,14 @@ export function defineConfig(
  * Load metonym configuration, merging sources in priority order:
  * 1. DEFAULT_CONFIG (baseline)
  * 2. package.json "metonym" key (if exists)
- * 3. metonym.config.ts default export (if exists)
+ * 3. metonym.config.ts (or metonym.config.js, if .ts is absent) default export
  * 4. overrides parameter
  * 5. root field (always set to the root parameter)
  *
  * Arrays replace entirely (no concat). Validates that include/exclude/languages
- * are arrays if present; throws clear Error on validation failure.
+ * are arrays if present; throws clear Error on validation failure. A missing
+ * config file is fine; a broken one is not — syntax and runtime errors while
+ * loading `metonym.config.ts`/`.js` propagate instead of being swallowed.
  */
 export async function loadConfig(
   root: string,
@@ -39,30 +41,68 @@ export async function loadConfig(
   };
 
   const packageJsonPath = resolve(root, "package.json");
-  const metonymConfigPath = resolve(root, "metonym.config.ts");
+  const packageJsonText = await Bun.file(packageJsonPath)
+    .text()
+    .catch(() => undefined);
 
-  const [packageJson, configFromFile] = await Promise.all([
-    Bun.file(packageJsonPath)
-      .text()
-      .then((content) => JSON.parse(content) as unknown)
-      .catch(() => undefined),
-    import(`file://${metonymConfigPath}`)
-      .then((mod: { default?: unknown }) => mod.default)
-      .catch(() => undefined),
-  ]);
+  let packageJson: unknown;
+  if (packageJsonText !== undefined) {
+    try {
+      packageJson = JSON.parse(packageJsonText);
+    } catch (err) {
+      throw new Error(
+        `Invalid metonym config: package.json is not valid JSON (${errorMessage(err)})`,
+        { cause: err },
+      );
+    }
+  }
+
+  const tsPath = resolve(root, "metonym.config.ts");
+  const jsPath = resolve(root, "metonym.config.js");
+  const configPath = (await Bun.file(tsPath).exists())
+    ? tsPath
+    : (await Bun.file(jsPath).exists())
+      ? jsPath
+      : undefined;
+
+  let configFromFile: unknown;
+  if (configPath) {
+    const configName = configPath.endsWith(".js")
+      ? "metonym.config.js"
+      : "metonym.config.ts";
+    try {
+      const mod = (await import(`file://${configPath}`)) as {
+        default?: unknown;
+      };
+      configFromFile = mod.default;
+    } catch (err) {
+      throw new Error(`Failed to load ${configName}: ${errorMessage(err)}`, {
+        cause: err,
+      });
+    }
+  }
 
   if (
     packageJson !== undefined &&
     typeof packageJson === "object" &&
     packageJson !== null &&
-    "metonym" in packageJson &&
-    typeof packageJson.metonym === "object" &&
-    packageJson.metonym !== null
+    "metonym" in packageJson
   ) {
-    mergeConfig(config, packageJson.metonym as Partial<MetonymConfig>);
+    const metonymField = (packageJson as Record<string, unknown>).metonym;
+    if (typeof metonymField !== "object" || metonymField === null) {
+      throw new Error(
+        `Invalid metonym config: "package.json#metonym" must be an object, got ${typeof metonymField}`,
+      );
+    }
+    mergeConfig(config, metonymField as Partial<MetonymConfig>);
   }
 
-  if (configFromFile && typeof configFromFile === "object") {
+  if (configFromFile !== undefined) {
+    if (typeof configFromFile !== "object" || configFromFile === null) {
+      throw new Error(
+        `Invalid metonym config: metonym.config default export must be an object, got ${typeof configFromFile}`,
+      );
+    }
     mergeConfig(config, configFromFile as Partial<MetonymConfig>);
   }
 
@@ -85,6 +125,10 @@ export async function loadConfig(
   };
 
   return finalConfig;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
