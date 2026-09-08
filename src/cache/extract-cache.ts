@@ -75,7 +75,7 @@ export async function extractCachedWithKeys(project: Project): Promise<{
   const languages = project.config.languages;
   const cacheDir = `${root}/.metonym/cache/extract`;
   const indexPath = `${cacheDir}/${INDEX_FILE}`;
-  const scope = `${configKey(project.config)}:${versionKey()}`;
+  const scope = `${configKey(project.config)}:${await versionKey(root)}`;
 
   const previous = await readIndex(indexPath, scope);
   const next = new Map<string, IndexEntry>();

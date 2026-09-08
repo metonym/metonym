@@ -78,7 +78,7 @@ export async function deepAnalysisKey(
 
   return contentKey(
     [
-      versionKey(),
+      await versionKey(docs.root),
       `typescript@${tsVersion}`,
       contentKey(tsconfigText),
       fileHashes.sort().join("\n"),

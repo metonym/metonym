@@ -7,7 +7,7 @@ import { describe, expect, it } from "bun:test";
 import * as fs from "node:fs/promises";
 import { scan } from "metonym";
 import { clearCache, extractCached } from "../src/cache/extract-cache";
-import { closureKey } from "../src/cache/keys";
+import { closureKey, versionKey } from "../src/cache/keys";
 import { runCached } from "../src/cache/result-cache";
 import { loadConfig } from "../src/config";
 
@@ -333,6 +333,45 @@ describe("cache", () => {
         const key2 = await closureKey(root, ["src/main.ts"]);
 
         expect(key1).toBe(key2);
+      } finally {
+        await cleanupFixture(root);
+      }
+    });
+
+    it("follows imports under a /private/tmp-rooted project (macOS temp roots)", async () => {
+      // mkdtemp under /tmp returns an un-resolved path, but Bun.resolveSync
+      // returns the /private/tmp-prefixed realpath, so an unnormalised
+      // `resolved.startsWith(root)` check would silently drop this import.
+      const root = await createFixture("closure-private-prefix");
+      try {
+        await fs.mkdir(`${root}/src`, { recursive: true });
+        await fs.writeFile(`${root}/src/main.ts`, `import "./other";\n`);
+        await fs.writeFile(`${root}/src/other.ts`, `const y = 1;\n`);
+
+        const key1 = await closureKey(root, ["src/main.ts"]);
+
+        await fs.writeFile(`${root}/src/other.ts`, `const y = 2;\n`);
+
+        const key2 = await closureKey(root, ["src/main.ts"]);
+
+        expect(key1).not.toBe(key2);
+      } finally {
+        await cleanupFixture(root);
+      }
+    });
+  });
+
+  describe("versionKey", () => {
+    it("changes when bun.lock content changes", async () => {
+      const root = await createFixture("version-key-lockfile");
+      try {
+        await fs.writeFile(`${root}/bun.lock`, `{"lockfileVersion": 1}\n`);
+        const key1 = await versionKey(root);
+
+        await fs.writeFile(`${root}/bun.lock`, `{"lockfileVersion": 2}\n`);
+        const key2 = await versionKey(root);
+
+        expect(key1).not.toBe(key2);
       } finally {
         await cleanupFixture(root);
       }
