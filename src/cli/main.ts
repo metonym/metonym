@@ -23,6 +23,8 @@ import {
 import { scan } from "../scan/scan";
 import { c } from "./colors";
 import { reportPretty } from "./reporter";
+import { selectExamples } from "./select";
+import { UsageError } from "./usage-error";
 
 // Command-specific modules are dynamically imported at their one call site
 // instead of statically here. `analysis/ts-provider.ts` alone is ~900 lines
@@ -37,9 +39,6 @@ interface Args {
   paths: string[];
   flags: Map<string, string | true>;
 }
-
-/** Thrown for bad CLI input (unknown flag, invalid value, unmatched paths). Caught once in `main()` → exit 2. */
-class UsageError extends Error {}
 
 // `no-config` is added by a sibling PR; listing it here as known is
 // harmless even before that lands.
@@ -253,16 +252,6 @@ async function extractFor(
   return docs;
 }
 
-function applyFilter(docs: DocumentationSet, filter: string | undefined): void {
-  if (!filter) return;
-  const keep = new Set(
-    docs.examples.filter((e) => e.title.includes(filter)).map((e) => e.id),
-  );
-  docs.examples = docs.examples.filter((e) => keep.has(e.id));
-  for (const d of docs.documents)
-    d.exampleIds = d.exampleIds.filter((id) => keep.has(id));
-}
-
 /**
  * Whether `check` should run deep analysis. Nothing on the check path
  * reads what it produces (hovers, diagnostics, signatures live on the IR
@@ -281,7 +270,7 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
   let docs = await extractFor(project, full, {
     skipAnalysis: !checkNeedsAnalysis(project, args),
   });
-  applyFilter(docs, strFlag(args.flags, "filter"));
+  selectExamples(docs, { filter: strFlag(args.flags, "filter") });
   if (args.flags.has("changed") && !full) {
     const { selectAffected } = await import("../graph/select");
     const selection = await selectAffected(docs, {
