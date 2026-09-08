@@ -334,7 +334,8 @@ describe("watchProject", () => {
         root: tempDir,
         config,
         onChange: async () => {},
-        watchImpl: unavailableWatch as unknown as typeof import("node:fs").watch,
+        watchImpl:
+          unavailableWatch as unknown as typeof import("node:fs").watch,
       });
     }).toThrow(/recursive watch/i);
     watcher = null;

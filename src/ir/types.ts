@@ -141,7 +141,7 @@ export type Relation =
 export interface DocumentationSet {
   irVersion: typeof IR_VERSION;
   tool: { name: typeof TOOL_NAME; version: string };
-  /** Project root (absolute); not serialized comparisons — informational. */
+  /** Project root: absolute on the in-memory IR; serialised as `.` by the CLI and renderers. */
   root: string;
   documents: Document[];
   examples: Example[]; // flat, ordered (file path, then offset)
