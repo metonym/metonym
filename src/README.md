@@ -104,6 +104,9 @@ examples, with declaration locations. Percentages count exports that have
 examples. An "exercised by examples" count is which APIs fences actually
 call. Barrel re-exports are excluded from the totals.
 
+A README example that imports and calls an export documents and exercises
+it too — you don't need JSDoc `@example` blocks just to score coverage.
+
 `metonym coverage --check` enforces thresholds from config and exits
 nonzero for CI. All gates are optional and independent — see
 [coverage in the CLI section](#coverage) for the full list, including
