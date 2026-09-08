@@ -1047,3 +1047,41 @@ test('import x = require("m") transforms to a dynamic import', () => {
     new Bun.Transpiler({ loader: "ts" }).transformSync(generated.code),
   ).not.toThrow();
 });
+
+test("import attributes (with clause) are forwarded to the dynamic import", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+
+  const ex: Example = {
+    id: "ex:test.md:1",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 1, column: 1, offset: 0 },
+      end: { line: 2, column: 1, offset: 50 },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 1, column: 1, offset: 0 },
+      end: { line: 2, column: 1, offset: 50 },
+    },
+    language: "ts",
+    code: 'import data from "./x.json" with { type: "json" };',
+    kind: "assertion",
+    title: "JSON import",
+  };
+
+  const docSet = createDocSet([doc], [ex]);
+  const [generated] = generate(docSet);
+
+  expect(generated.code).toContain(
+    'await import("./x.json", { with: { type: "json" } });',
+  );
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(generated.code),
+  ).not.toThrow();
+});

@@ -42,6 +42,14 @@ class LineCounter {
   }
 }
 
+/** Optional trailing `with { ... }` / `assert { ... }` import attributes clause. */
+const ATTR_CLAUSE_SOURCE = "(?:\\s+(?:with|assert)\\s*(\\{[^}]*\\}))?";
+
+/** Renders a captured import-attributes clause as a second `import()` argument. */
+function importOptionsArg(attrs?: string): string {
+  return attrs ? `, { with: ${attrs} }` : "";
+}
+
 /**
  * Transforms import statements to dynamic async imports.
  * Preserves leading whitespace and handles all import forms.
@@ -72,36 +80,45 @@ function transformImportLine(line: string): string {
     return `${leadingWhitespace}const ${name} = await import(${JSON.stringify(path)}).then((m) => m.default ?? m);`;
   }
 
-  // Handle: import "m"
-  const bareImport = importStmt.match(/^import\s+["'](.+?)["']\s*;?\s*$/);
+  // Handle: import "m" [with { ... }]
+  const bareImport = importStmt.match(
+    new RegExp(`^import\\s+["'](.+?)["']${ATTR_CLAUSE_SOURCE}\\s*;?\\s*$`),
+  );
   if (bareImport) {
-    return `${leadingWhitespace}await import(${JSON.stringify(bareImport[1])});`;
+    const [, path, attrs] = bareImport;
+    return `${leadingWhitespace}await import(${JSON.stringify(path)}${importOptionsArg(attrs)});`;
   }
 
-  // Handle: import * as ns from "m"
+  // Handle: import * as ns from "m" [with { ... }]
   const starImport = importStmt.match(
-    /^import\s+\*\s+as\s+(\w+)\s+from\s+["'](.+?)["']\s*;?\s*$/,
+    new RegExp(
+      `^import\\s+\\*\\s+as\\s+(\\w+)\\s+from\\s+["'](.+?)["']${ATTR_CLAUSE_SOURCE}\\s*;?\\s*$`,
+    ),
   );
   if (starImport) {
-    const [, name, path] = starImport;
-    return `${leadingWhitespace}const ${name} = await import(${JSON.stringify(path)});`;
+    const [, name, path, attrs] = starImport;
+    return `${leadingWhitespace}const ${name} = await import(${JSON.stringify(path)}${importOptionsArg(attrs)});`;
   }
 
-  // Handle: import d from "m"
+  // Handle: import d from "m" [with { ... }]
   const defaultImport = importStmt.match(
-    /^import\s+(\w+)\s+from\s+["'](.+?)["']\s*;?\s*$/,
+    new RegExp(
+      `^import\\s+(\\w+)\\s+from\\s+["'](.+?)["']${ATTR_CLAUSE_SOURCE}\\s*;?\\s*$`,
+    ),
   );
   if (defaultImport) {
-    const [, name, path] = defaultImport;
-    return `${leadingWhitespace}const { default: ${name} } = await import(${JSON.stringify(path)});`;
+    const [, name, path, attrs] = defaultImport;
+    return `${leadingWhitespace}const { default: ${name} } = await import(${JSON.stringify(path)}${importOptionsArg(attrs)});`;
   }
 
-  // Handle: import { a, b as c } from "m" or import d, { a as b } from "m"
+  // Handle: import { a, b as c } from "m" or import d, { a as b } from "m" [with { ... }]
   const complexImport = importStmt.match(
-    /^import\s+([^;]+?)\s+from\s+["'](.+?)["']\s*;?\s*$/,
+    new RegExp(
+      `^import\\s+([^;]+?)\\s+from\\s+["'](.+?)["']${ATTR_CLAUSE_SOURCE}\\s*;?\\s*$`,
+    ),
   );
   if (complexImport) {
-    const [, specs, path] = complexImport;
+    const [, specs, path, attrs] = complexImport;
     const transformedSpecs: string[] = [];
 
     const braceMatch = specs.match(/\{\s*([^}]*)\s*\}/);
@@ -135,7 +152,7 @@ function transformImportLine(line: string): string {
       return `${leadingWhitespace}// metonym: type-only import elided`;
     }
 
-    return `${leadingWhitespace}const { ${transformedSpecs.join(", ")} } = await import(${JSON.stringify(path)});`;
+    return `${leadingWhitespace}const { ${transformedSpecs.join(", ")} } = await import(${JSON.stringify(path)}${importOptionsArg(attrs)});`;
   }
 
   return line;
