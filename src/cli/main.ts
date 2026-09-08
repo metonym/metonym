@@ -8,6 +8,7 @@
  *   metonym build            render docs (--format=markdown|html|json|jsonl)
  */
 
+import { isAbsolute, join } from "node:path";
 import { resolveAnalysisMode } from "../analysis/provider";
 import { extractCachedWithKeys } from "../cache/extract-cache";
 import { runCached } from "../cache/result-cache";
@@ -170,6 +171,11 @@ function strFlag(
   return typeof v === "string" ? v : undefined;
 }
 
+/** Joins `dir` onto `root` unless `dir` is already absolute (e.g. `--out-dir=/tmp/mb`). */
+function resolveOutDir(root: string, dir: string): string {
+  return isAbsolute(dir) ? dir : join(root, dir);
+}
+
 async function loadProject(args: Args): Promise<Project> {
   const overrides: Record<string, unknown> = {};
   const outDir = strFlag(args.flags, "out-dir");
@@ -299,7 +305,7 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
       process.stderr.write(`${c.yellow(`warning: ${diag}`)}\n`);
   }
   const result = await runCached(docs, {
-    outDir: `${project.root}/${project.config.outDir}`,
+    outDir: resolveOutDir(project.root, project.config.outDir),
     full,
     emit,
   });
@@ -387,7 +393,7 @@ async function run(): Promise<number> {
         return 0;
       }
       if (format === "tests") {
-        const outDir = `${project.root}/${project.config.outDir}`;
+        const outDir = resolveOutDir(project.root, project.config.outDir);
         for (const gt of generate(docs, {
           jsxImportSource: project.config.jsxImportSource,
           inject: project.config.inject,
@@ -420,15 +426,16 @@ async function run(): Promise<number> {
       let results: RunResult | undefined;
       if (args.flags.has("run")) {
         results = await runCached(docs, {
-          outDir: `${project.root}/${project.config.outDir}`,
+          outDir: resolveOutDir(project.root, project.config.outDir),
           full: args.flags.has("full"),
         });
       }
-      const outDir = strFlag(args.flags, "out-dir") ?? ".metonym/build";
+      const outDirFlag = strFlag(args.flags, "out-dir") ?? ".metonym/build";
+      const outDir = resolveOutDir(project.root, outDirFlag);
       const rendered = await renderer.render(docs, { results });
       for (const f of rendered.files) {
-        await Bun.write(`${project.root}/${outDir}/${f.path}`, f.contents);
-        process.stdout.write(`${outDir}/${f.path}\n`);
+        await Bun.write(`${outDir}/${f.path}`, f.contents);
+        process.stdout.write(`${outDirFlag}/${f.path}\n`);
       }
       return 0;
     }

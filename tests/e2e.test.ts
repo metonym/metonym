@@ -225,6 +225,22 @@ describe("e2e fixture project", () => {
     expect(await Bun.file(join(outDir, "metonym.ir.json")).exists()).toBe(true);
     expect(await Bun.file(join(outDir, "README.md")).exists()).toBe(true);
   });
+
+  test("build --out-dir with an absolute path writes and prints there, not under the project root", async () => {
+    const absOutDir = await mkdtemp(join(tmpdir(), "metonym-out-"));
+    const result = runCli([
+      "build",
+      `--root=${root}`,
+      "--format=json",
+      `--out-dir=${absOutDir}`,
+    ]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(join(absOutDir, "metonym.ir.json"));
+    expect(await Bun.file(join(absOutDir, "metonym.ir.json")).exists()).toBe(
+      true,
+    );
+    await rm(absOutDir, { recursive: true, force: true });
+  });
 });
 
 describe("CLI usage errors", () => {
