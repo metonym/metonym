@@ -53,7 +53,9 @@ Documentation example failed
 ## Authoring
 
 `ts` / `tsx` / `js` / `jsx` fenced blocks in your docs are executable by
-default. Attributes on the fence line opt out or change semantics:
+default. The aliases `typescript` and `javascript` are also accepted, and
+the language token is case-insensitive. Attributes on the fence line opt
+out or change semantics:
 
 | Attribute | Meaning |
 | --- | --- |

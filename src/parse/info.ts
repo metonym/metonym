@@ -32,9 +32,19 @@ const EXECUTABLE_LANGS = new Set(["ts", "tsx", "js", "jsx"]);
  * expect(info.group).toBe("setup")
  * ```
  */
+const LANG_ALIASES: Record<string, string> = {
+  typescript: "ts",
+  javascript: "js",
+  mts: "ts",
+  cts: "ts",
+  mjs: "js",
+  cjs: "js",
+};
+
 export function parseInfoString(info: string): InfoString {
   const tokens = info.trim().split(/\s+/).filter(Boolean);
-  const lang = tokens[0] ?? "";
+  const rawLang = (tokens[0] ?? "").toLowerCase();
+  const lang = LANG_ALIASES[rawLang] ?? rawLang;
   const attrs = tokens.slice(1);
 
   let ignore = false;

@@ -270,6 +270,16 @@ test("markdown: indented fence respects indent", () => {
   expect(examples[0].code.trim()).toBe("code()");
 });
 
+test("markdown: typescript alias fence produces language ts", () => {
+  const text = `\`\`\`typescript
+code()
+\`\`\``;
+
+  const { examples } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(1);
+  expect(examples[0].language).toBe("ts");
+});
+
 test("markdown: fence inside a multi-line HTML comment is not extracted", () => {
   const text = `<!--
 \`\`\`ts
