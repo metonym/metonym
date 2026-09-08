@@ -109,7 +109,7 @@ and call it for each example in document order.
 
 ### `DEFAULT_CONFIG`
 
-[src/ir/types.ts:305](../src/ir/types.ts#L305)
+[src/ir/types.ts:307](../src/ir/types.ts#L307)
 
 `{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: "auto" | "shallow" | "deep" | undefined; coverage?: { minDocumented?: number; minExamples?: number; minExercised?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }`
 
@@ -194,7 +194,7 @@ offset; `line`/`column` are 1-indexed within the snippet.
 
 ### `MetonymConfig`
 
-[src/ir/types.ts:268](../src/ir/types.ts#L268)
+[src/ir/types.ts:270](../src/ir/types.ts#L270)
 
 `MetonymConfig`
 
@@ -208,7 +208,7 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `Project`
 
-[src/ir/types.ts:313](../src/ir/types.ts#L313)
+[src/ir/types.ts:315](../src/ir/types.ts#L315)
 
 `Project`
 
@@ -220,31 +220,31 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `RenderedFile`
 
-[src/ir/types.ts:243](../src/ir/types.ts#L243)
+[src/ir/types.ts:245](../src/ir/types.ts#L245)
 
 `RenderedFile`
 
 ### `Renderer`
 
-[src/ir/types.ts:258](../src/ir/types.ts#L258)
+[src/ir/types.ts:260](../src/ir/types.ts#L260)
 
 `Renderer<TOptions>`
 
 ### `RenderOptions`
 
-[src/ir/types.ts:253](../src/ir/types.ts#L253)
+[src/ir/types.ts:255](../src/ir/types.ts#L255)
 
 `RenderOptions`
 
 ### `RenderResult`
 
-[src/ir/types.ts:249](../src/ir/types.ts#L249)
+[src/ir/types.ts:251](../src/ir/types.ts#L251)
 
 `RenderResult`
 
 ### `RunResult`
 
-[src/ir/types.ts:216](../src/ir/types.ts#L216)
+[src/ir/types.ts:218](../src/ir/types.ts#L218)
 
 `RunResult`
 
