@@ -36,6 +36,17 @@ export interface AddOptions { round?: boolean; }`;
   expect(symbols.map((s) => s.name).sort()).toEqual(["AddOptions", "add"]);
 });
 
+test("scanSymbols: multiple `export * from` re-exports get distinct ids", () => {
+  const source = `export * from "./a";
+export * from "./b";`;
+  const symbols = scanSymbols("index.ts", source);
+  const reexports = symbols.filter((s) => s.name === "*");
+  expect(reexports.length).toBe(2);
+  expect(reexports[0].id).not.toBe(reexports[1].id);
+  expect(reexports.map((s) => s.reexportFrom).sort()).toEqual(["./a", "./b"]);
+  expect(reexports.every((s) => s.name === "*")).toBe(true);
+});
+
 test("scanSymbols: an interface field comment with an apostrophe doesn't hide a later export", () => {
   const source = `export interface A {
   /** the caller's id */

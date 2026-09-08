@@ -95,7 +95,7 @@ export function scanSymbols(file: string, code: string): SymbolInfo[] {
   for (const decl of decls) {
     if (decl.name === "*" && decl.reexportFrom) {
       symbols.push({
-        id: symbolId(file, "*"),
+        id: symbolId(file, `*:${decl.reexportFrom}`),
         file,
         name: "*",
         imports,
