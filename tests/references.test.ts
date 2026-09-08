@@ -301,8 +301,9 @@ expect(add(2, 3)).toBe(5)
 
   const addSym = docs.symbols.find((s) => s.name === "add");
   expect(addSym).toBeDefined();
+  if (!addSym) throw new Error("expected add symbol");
 
   const refs = exampleReferences(docs).filter((r) => r.kind === "references");
   expect(refs.length).toBe(1);
-  expect(refs[0].to).toBe(addSym?.id);
+  expect(refs[0].to).toBe(addSym.id);
 });

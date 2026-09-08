@@ -290,7 +290,9 @@ test("throws examples wrap in try/catch", () => {
   expect(code).toContain("try {");
   expect(code).toContain("} catch {");
   expect(code).toContain("__threw = true;");
-  expect(code).toContain("expect(__threw).toBe(true);");
+  expect(code).toContain(
+    'if (!__threw) throw new Error("expected code to throw");',
+  );
 });
 
 test("pending examples generate test.todo", () => {
@@ -1240,5 +1242,51 @@ test("export { ... } and export ... from are commented out", () => {
   expect(code).toContain("// metonym: export removed");
   expect(() =>
     new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
+
+test("inject: false omits expect from the bun:test import line", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+
+  const docSet = createDocSet(
+    [doc],
+    [makeExample('import { expect } from "bun:test";\nexpect(1).toBe(1);')],
+  );
+  const [generated] = generate(docSet, { inject: false });
+
+  const lines = codeLines(generated.code);
+  expect(lines).toContainEqual(`import { describe, test } from "bun:test";`);
+  expect(generated.code).not.toContain(
+    `import { describe, test, expect } from "bun:test";`,
+  );
+});
+
+test("inject: false still generates a throws example without depending on the auto-import", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+
+  const ex: Example = {
+    ...makeExample("throw new Error('boom');"),
+    kind: "throws",
+  };
+
+  const docSet = createDocSet([doc], [ex]);
+  const [generated] = generate(docSet, { inject: false });
+
+  expect(generated.code).toContain(
+    'if (!__threw) throw new Error("expected code to throw");',
+  );
+  expect(generated.code).not.toContain("expect(__threw)");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(generated.code),
   ).not.toThrow();
 });

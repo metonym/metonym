@@ -290,7 +290,10 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
       docs = selection.docs;
     }
   }
-  const emit = { jsxImportSource: project.config.jsxImportSource };
+  const emit = {
+    jsxImportSource: project.config.jsxImportSource,
+    inject: project.config.inject,
+  };
   for (const gt of generate(docs, emit)) {
     for (const diag of gt.diagnostics ?? [])
       process.stderr.write(`${c.yellow(`warning: ${diag}`)}\n`);
@@ -387,6 +390,7 @@ async function run(): Promise<number> {
         const outDir = `${project.root}/${project.config.outDir}`;
         for (const gt of generate(docs, {
           jsxImportSource: project.config.jsxImportSource,
+          inject: project.config.inject,
         })) {
           await Bun.write(`${outDir}/${gt.path}`, gt.code);
           await Bun.write(
