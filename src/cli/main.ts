@@ -152,10 +152,11 @@ function parseArgs(argv: string[]): Args {
     reporter !== undefined &&
     reporter !== "pretty" &&
     reporter !== "json" &&
-    reporter !== "github"
+    reporter !== "github" &&
+    reporter !== "junit"
   ) {
     throw new UsageError(
-      `invalid --reporter=${String(reporter)} (allowed: pretty, json, github)`,
+      `invalid --reporter=${String(reporter)} (allowed: pretty, json, github, junit)`,
     );
   }
   const analysis = flags.get("analysis");
@@ -205,7 +206,7 @@ Flags:
   --only=<id|file:line>               run only these examples (repeatable)
   --list                              print selected examples, don't run them
   --failed                            run only examples that failed last run
-  --reporter=pretty|json|github      check output format (default pretty;
+  --reporter=pretty|json|github|junit  check output format (default pretty;
                                       github auto-selected under GITHUB_ACTIONS)
   --root=<dir>                        project root (default cwd)
   --analysis=auto|shallow|deep        symbol analysis depth (deep needs typescript)
@@ -498,6 +499,9 @@ async function checkOnce(
     const { reportGithub } = await import("./reporters/github");
     reportGithub(result);
     await reportPretty(result, project.root);
+  } else if (reporter === "junit") {
+    const { reportJunit } = await import("./reporters/junit");
+    process.stdout.write(reportJunit(result));
   } else {
     await reportPretty(result, project.root);
   }
