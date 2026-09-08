@@ -80,4 +80,14 @@ describe("loadConfig", () => {
       'unknown key "coverage.minDocs"',
     );
   });
+
+  test("noConfigFile ignores a present config file", async () => {
+    await writeFile(
+      resolve(root, "metonym.config.ts"),
+      "export default { outDir: 'should-be-ignored' };\n",
+    );
+
+    const config = await loadConfig(root, undefined, { noConfigFile: true });
+    expect(config.outDir).not.toBe("should-be-ignored");
+  });
 });

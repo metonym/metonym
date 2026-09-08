@@ -450,6 +450,7 @@ These apply across commands wherever they're relevant:
 | `--out-dir=<dir>` | Overrides the generated-tests output directory, used by `check`, `extract --format=tests`, and `build --run`'s test execution. For `build`'s own rendered-file directory, see `--out-dir` under [build](#build) — the two are independent, so `build --run --out-dir=X` never lets stale-test pruning touch the docs `build` just rendered into `X` |
 | `--analysis=auto\|shallow\|deep` | Symbol analysis depth; `deep` requires `typescript` resolvable from the project root |
 | `--full` | Bypass caches, run/analyze everything from scratch |
+| `--no-config` | Ignore `metonym.config.ts` (`package.json#metonym` still applies) |
 | `--help`, `--version` | Print usage / version and exit `0`, from any position |
 
 Deleting `.metonym/` is always safe.
