@@ -196,16 +196,61 @@ export async function mapPool<T, R>(
   return results;
 }
 
+/** First 1024 chars containing a NUL byte is treated as a binary file. */
+function looksBinary(text: string): boolean {
+  return text.slice(0, 1024).includes("\0");
+}
+
+function skipReason(err: unknown): string {
+  if (err && typeof err === "object" && "code" in err && err.code) {
+    return String(err.code);
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Read and extract one file, isolating failures so an unreadable or binary
+ * file skips itself (with a warning) instead of aborting the whole run.
+ */
+async function extractFileSafely(
+  root: string,
+  file: string,
+  languages: string[],
+  extractor: (
+    root: string,
+    file: string,
+    languages: string[],
+    text: string,
+  ) => Promise<FilePart>,
+  skipped: string[],
+): Promise<FilePart | null> {
+  try {
+    const text = await Bun.file(`${root}/${file}`).text();
+    if (looksBinary(text)) {
+      skipped.push(`${file}: skipped (binary file)`);
+      return null;
+    }
+    return await extractor(root, file, languages, text);
+  } catch (err) {
+    skipped.push(`${file}: skipped (${skipReason(err)})`);
+    return null;
+  }
+}
+
 export async function extract(project: Project): Promise<DocumentationSet> {
   const { root } = project;
   const languages = project.config.languages;
+  const skipped: string[] = [];
   const [docParts, sourceParts] = await Promise.all([
     mapPool(project.docFiles, EXTRACT_CONCURRENCY, (file) =>
-      extractDocFile(root, file, languages),
+      extractFileSafely(root, file, languages, extractDocFile, skipped),
     ),
     mapPool(project.sourceFiles, EXTRACT_CONCURRENCY, (file) =>
-      extractSourceFile(root, file, languages),
+      extractFileSafely(root, file, languages, extractSourceFile, skipped),
     ),
   ]);
-  return assembleDocumentationSet(root, [...docParts, ...sourceParts]);
+  const parts = [...docParts, ...sourceParts].filter(
+    (p): p is FilePart => p !== null,
+  );
+  return assembleDocumentationSet(root, parts, skipped);
 }
