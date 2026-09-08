@@ -269,3 +269,42 @@ test("markdown: indented fence respects indent", () => {
   expect(examples.length).toBe(1);
   expect(examples[0].code.trim()).toBe("code()");
 });
+
+test("markdown: fence inside a multi-line HTML comment is not extracted", () => {
+  const text = `<!--
+\`\`\`ts
+commented_out()
+\`\`\`
+-->
+`;
+
+  const { examples } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(0);
+});
+
+test("markdown: fence after the closing --> is extracted with correct line", () => {
+  const text = `<!--
+hidden
+-->
+\`\`\`ts
+real_code()
+\`\`\`
+`;
+
+  const { examples } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(1);
+  expect(examples[0].code.trim()).toBe("real_code()");
+  expect(examples[0].source.start.line).toBe(5);
+});
+
+test("markdown: single-line HTML comment does not swallow the next fence", () => {
+  const text = `<!-- note -->
+\`\`\`ts
+real_code()
+\`\`\`
+`;
+
+  const { examples } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(1);
+  expect(examples[0].code.trim()).toBe("real_code()");
+});

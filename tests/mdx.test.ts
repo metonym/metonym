@@ -185,6 +185,26 @@ test()
     expect(document.origin).toBe("markdown");
   });
 
+  test("mdx: fence inside a {/* */} block is not extracted", () => {
+    const text = `# Title
+
+{/*
+\`\`\`ts
+commented_out()
+\`\`\`
+*/}
+
+\`\`\`ts
+real_code()
+\`\`\`
+`;
+
+    const { examples } = extractMarkdown(text, { file: "test.mdx" });
+
+    expect(examples.length).toBe(1);
+    expect(examples[0].code.trim()).toBe("real_code()");
+  });
+
   test("mdx: exact source.start.line for examples in MDX", () => {
     const text = `import { x } from "y"
 
