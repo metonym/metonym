@@ -18,8 +18,7 @@ the metonym repo uses (`npm:@typescript/typescript6`) until 7.1.
 ```
 
 ```console
-metonym extract --format=json > ir.json
-bun site/render.ts
+bun extract.ts
 ```
 
 ## add
