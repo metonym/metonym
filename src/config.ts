@@ -37,6 +37,7 @@ export function defineConfig(
 export async function loadConfig(
   root: string,
   overrides?: Partial<MetonymConfig>,
+  opts?: { noConfigFile?: boolean },
 ): Promise<MetonymConfig> {
   const config: Partial<MetonymConfig> = {
     ...DEFAULT_CONFIG,
@@ -61,11 +62,13 @@ export async function loadConfig(
 
   const tsPath = resolve(root, "metonym.config.ts");
   const jsPath = resolve(root, "metonym.config.js");
-  const configPath = (await Bun.file(tsPath).exists())
-    ? tsPath
-    : (await Bun.file(jsPath).exists())
-      ? jsPath
-      : undefined;
+  const configPath = opts?.noConfigFile
+    ? undefined
+    : (await Bun.file(tsPath).exists())
+      ? tsPath
+      : (await Bun.file(jsPath).exists())
+        ? jsPath
+        : undefined;
 
   let configFromFile: unknown;
   let configFileName = "metonym.config.ts";

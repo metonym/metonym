@@ -81,6 +81,7 @@ Flags:
   --changed[=<ref>]                   check only examples affected by git changes
   --watch                             re-run on file changes (check only)
   --run                               build: execute examples to annotate statuses
+  --no-config                         ignore metonym.config.ts (package.json#metonym still applies)
   --help, --version
 `;
 
@@ -107,6 +108,7 @@ async function loadProject(args: Args): Promise<Project> {
     config: Object.keys(overrides).length
       ? (overrides as Partial<Project["config"]>)
       : undefined,
+    noConfigFile: args.flags.has("no-config"),
   });
   if (args.paths.length > 0) {
     const match = (f: string) =>

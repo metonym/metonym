@@ -142,6 +142,31 @@ describe("e2e fixture project", () => {
     for (const line of lines) expect(() => JSON.parse(line)).not.toThrow();
   });
 
+  test("extract --no-config skips a broken metonym.config.ts", async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), "metonym-e2e-noconfig-"));
+    try {
+      await Bun.write(
+        join(configRoot, "package.json"),
+        JSON.stringify({ name: "demo-pkg" }),
+      );
+      await Bun.write(join(configRoot, "README.md"), "# demo-pkg\n");
+      await Bun.write(
+        join(configRoot, "metonym.config.ts"),
+        "throw new Error('boom');\n",
+      );
+
+      const { exitCode } = runCli([
+        "extract",
+        `--root=${configRoot}`,
+        "--format=json",
+        "--no-config",
+      ]);
+      expect(exitCode).toBe(0);
+    } finally {
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+
   test("build --run --out-dir doesn't let generated-test pruning delete its own rendered output", async () => {
     // `--out-dir` means "where do rendered docs go" for `build`, not "where
     // do generated tests go" — if it leaked into the latter too, `--run`'s

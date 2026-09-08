@@ -13,9 +13,12 @@ import type { MetonymConfig, Project } from "../ir/types.ts";
 export async function scan(opts?: {
   root?: string;
   config?: Partial<MetonymConfig>;
+  noConfigFile?: boolean;
 }): Promise<Project> {
   const root = opts?.root ? resolve(opts.root) : process.cwd();
-  const config = await loadConfig(root, opts?.config);
+  const config = await loadConfig(root, opts?.config, {
+    noConfigFile: opts?.noConfigFile,
+  });
 
   const docFiles: Set<string> = new Set();
   const sourceFiles: Set<string> = new Set();
