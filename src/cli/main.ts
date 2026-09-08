@@ -451,8 +451,8 @@ async function run(): Promise<number> {
             ? toMermaid
             : toDot;
       if (!docs.relations.some((r) => r.kind === "references")) {
-        const { exampleReferences } = await import("../graph/references");
-        docs.relations = [...docs.relations, ...exampleReferences(docs)];
+        const { ensureReferences } = await import("../graph/references");
+        docs.relations = [...docs.relations, ...ensureReferences(docs)];
       }
       process.stdout.write(emit(docs));
       return 0;
