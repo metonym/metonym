@@ -5,10 +5,7 @@ import type {
   SymbolInfo,
 } from "../ir/types";
 import { getTranspiler, loaderFromPath } from "../parse/transpiler";
-
-function stripPrivatePrefix(p: string): string {
-  return p.replace(/^\/private/, "");
-}
+import { resolveInternal } from "./paths";
 
 export interface CoverageReport {
   symbols: {
@@ -161,21 +158,9 @@ export function exampleEntryFiles(
 
   const resolved = new Set<string>();
 
-  const normalizedRoot = stripPrivatePrefix(docs.root);
-
   for (const spec of imports) {
-    try {
-      const absPath = Bun.resolveSync(spec, docs.root);
-
-      if (absPath.includes("/node_modules/")) continue;
-
-      const normalizedPath = stripPrivatePrefix(absPath);
-
-      if (!normalizedPath.startsWith(normalizedRoot)) continue;
-
-      const relPath = normalizedPath.slice(normalizedRoot.length + 1);
-      resolved.add(relPath);
-    } catch {}
+    const relPath = resolveInternal(docs.root, spec, docs.root);
+    if (relPath !== null) resolved.add(relPath);
   }
 
   return Array.from(resolved).sort();
@@ -242,7 +227,6 @@ export async function affectedExamples(
       if (cached === undefined) continue;
       closureSet = cached;
     } else {
-      const normalizedRoot = stripPrivatePrefix(docs.root);
       closureSet = new Set<string>();
 
       const visited = new Set<string>();
@@ -275,24 +259,14 @@ export async function affectedExamples(
           relPath.substring(0, relPath.lastIndexOf("/") + 1) || "./";
 
         for (const imp of imports) {
-          try {
-            const resolved = Bun.resolveSync(
-              imp.path,
-              `${docs.root}/${dirOfFile}`,
-            );
-            const normalizedResolved = stripPrivatePrefix(resolved);
-
-            if (!normalizedResolved.startsWith(normalizedRoot)) continue;
-            if (normalizedResolved.includes("/node_modules/")) continue;
-
-            const relResolved = normalizedResolved.slice(
-              normalizedRoot.length + 1,
-            );
-
-            if (!visited.has(relResolved)) {
-              queue.push(relResolved);
-            }
-          } catch {}
+          const relResolved = resolveInternal(
+            docs.root,
+            imp.path,
+            `${docs.root}/${dirOfFile}`,
+          );
+          if (relResolved !== null && !visited.has(relResolved)) {
+            queue.push(relResolved);
+          }
         }
       }
 
