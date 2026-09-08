@@ -175,6 +175,58 @@ describe("e2e fixture project", () => {
   });
 });
 
+describe("group= doc-line remap", () => {
+  test("failure in the 2nd+ example of a group remaps to the correct README line", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metonym-group-e2e-"));
+    try {
+      await Bun.write(
+        join(root, "package.json"),
+        JSON.stringify({ name: "demo-pkg" }),
+      );
+      const lines = [
+        "# demo-pkg",
+        "",
+        "## Group demo",
+        "",
+        "```ts group=g",
+        "const a = 1;",
+        "expect(a).toBe(1);",
+        "```",
+        "",
+        "```ts group=g",
+        "const b = 2;",
+        "expect(b).toBe(3);",
+        "```",
+        "",
+      ];
+      // 1-indexed line of `expect(b).toBe(3);` (the 2nd body line of the
+      // 2nd group member), computed from the array above rather than
+      // hardcoded so the assertion tracks the fixture if it's edited.
+      const failingLine = lines.indexOf("expect(b).toBe(3);") + 1;
+      await Bun.write(join(root, "README.md"), lines.join("\n"));
+
+      const { exitCode, stdout } = runCli([
+        "check",
+        `--root=${root}`,
+        "--reporter=json",
+      ]);
+      expect(exitCode).toBe(1);
+      const result = JSON.parse(stdout);
+      // Both group members' testcases report status "failed" (they share one
+      // `test()` scope), but only the entry whose generated line range
+      // contains the actual failure gets remapped `doc` info.
+      const remapped = result.results.find(
+        (r: { failure?: { doc?: unknown } }) => r.failure?.doc,
+      );
+      expect(remapped).toBeDefined();
+      expect(remapped.failure.doc.file).toBe("README.md");
+      expect(remapped.failure.doc.line).toBe(failingLine);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);
