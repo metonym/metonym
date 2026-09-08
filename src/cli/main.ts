@@ -463,18 +463,17 @@ async function run(): Promise<number> {
       const docs = await extractFor(project, args.flags.has("full"));
       const { checkCoverage, coverage } = await import("../graph/queries");
       const report = coverage(docs);
-      const deepRefs = new Set(
-        docs.relations.filter((r) => r.kind === "references").map((r) => r.to),
-      );
-      let exercised = deepRefs;
-      if (deepRefs.size === 0) {
-        const { exercisedSymbols } = await import("../graph/references");
-        exercised = exercisedSymbols(docs);
+
+      let gateResult: { pass: boolean; failures: string[] } | undefined;
+      if (args.flags.has("check")) {
+        const gates = project.config.coverage ?? {};
+        const gate = checkCoverage(docs, gates, report);
+        gateResult = { pass: gate.pass, failures: gate.failures };
       }
+
       if (args.flags.get("reporter") === "json") {
-        process.stdout.write(
-          `${JSON.stringify({ ...report, exercised: [...exercised].sort() }, null, 2)}\n`,
-        );
+        const json = gateResult ? { ...report, gates: gateResult } : report;
+        process.stdout.write(`${JSON.stringify(json, null, 2)}\n`);
       } else {
         const s = report.symbols;
         const at = (sym: {
@@ -486,7 +485,7 @@ async function run(): Promise<number> {
             ? `${sym.file}:${sym.loc.start.line} › ${sym.name}`
             : `${sym.file} › ${sym.name}`;
         const out: string[] = [
-          `symbols     ${s.total} total · ${s.documented} documented · ${s.withExamples} with examples · ${exercised.size} exercised by examples` +
+          `symbols     ${s.total} total · ${s.documented} documented · ${s.withExamples} with examples · ${report.exercised.length} exercised by examples` +
             (report.reexports
               ? ` · ${report.reexports} re-exports (excluded)`
               : ""),
@@ -505,17 +504,25 @@ async function run(): Promise<number> {
           out.push("", "examples with type errors:");
           for (const ex of report.examplesWithTypeErrors)
             out.push(`  ${ex.docFile} › ${ex.title} (${ex.errorCount})`);
+        } else if (
+          resolveAnalysisMode(project.root, project.config.analysis).mode !==
+          "deep"
+        ) {
+          out.push(
+            "",
+            "examples with type errors:",
+            "  (type errors: deep analysis off)",
+          );
         }
         process.stdout.write(`${out.join("\n")}\n`);
       }
-      if (args.flags.has("check")) {
-        const gates = project.config.coverage ?? {};
-        const gate = checkCoverage(docs, gates);
-        if (!gate.pass) {
+
+      if (gateResult) {
+        if (!gateResult.pass) {
           process.stderr.write(`${c.red("coverage gate failed:")}\n`);
-          for (const f of gate.failures)
+          for (const f of gateResult.failures)
             process.stderr.write(`${c.red(`  ${f}`)}\n`);
-          return 2;
+          return 1;
         }
         process.stderr.write(`${c.green("coverage gates passed")}\n`);
       }

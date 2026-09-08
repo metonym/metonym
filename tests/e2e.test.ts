@@ -456,6 +456,81 @@ describe("git subdirectory project", () => {
   });
 });
 
+describe("coverage command", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "metonym-coverage-e2e-"));
+    await Bun.write(
+      join(root, "package.json"),
+      JSON.stringify({
+        name: "cov-pkg",
+        exports: { ".": "./src/index.ts" },
+        metonym: { coverage: { minDocumented: 100 } },
+      }),
+    );
+    await Bun.write(
+      join(root, "src/index.ts"),
+      [
+        "export function add(a: number, b: number): number {",
+        "  return a + b;",
+        "}",
+        "",
+        "export function subtract(a: number, b: number): number {",
+        "  return a - b;",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    await Bun.write(
+      join(root, "README.md"),
+      [
+        "# cov-pkg",
+        "",
+        "```ts",
+        'import { add } from "cov-pkg"',
+        "expect(add(2, 3)).toBe(5)",
+        "```",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  test("--reporter=json --check exits 1 and reports gates.pass=false on a failing gate", () => {
+    // `subtract` is neither called from README nor JSDoc'd, so documented
+    // coverage is 50% — below the configured minDocumented: 100 gate.
+    const { exitCode, stdout } = runCli([
+      "coverage",
+      `--root=${root}`,
+      "--reporter=json",
+      "--check",
+    ]);
+    expect(exitCode).toBe(1);
+    const result = JSON.parse(stdout);
+    expect(result.gates).toBeDefined();
+    expect(result.gates.pass).toBe(false);
+    expect(result.gates.failures.length).toBeGreaterThanOrEqual(1);
+    expect(result.exercised).toEqual(
+      expect.arrayContaining([expect.stringContaining("add")]),
+    );
+  });
+
+  test("--reporter=json without --check has no gates key", () => {
+    const { exitCode, stdout } = runCli([
+      "coverage",
+      `--root=${root}`,
+      "--reporter=json",
+    ]);
+    expect(exitCode).toBe(0);
+    const result = JSON.parse(stdout);
+    expect(result.gates).toBeUndefined();
+  });
+});
+
 describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);
