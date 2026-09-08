@@ -114,6 +114,31 @@ describe("e2e fixture project", () => {
     expect(stderr).not.toContain("Broken claim");
   });
 
+  test("check --only=<file:line> runs exactly one example", () => {
+    // README.md:13 is the body start of the "Broken claim" example (fence
+    // at line 12, body starts line 13).
+    const { exitCode, stderr } = runCli([
+      "check",
+      `--root=${root}`,
+      "--only=README.md:13",
+    ]);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("✗ Broken claim › example 1");
+    expect(stderr).not.toContain("Quick start");
+    expect(stderr).not.toContain("Future API");
+    expect(stderr).toContain("1 example ·");
+  });
+
+  test("check --only with no match is a usage error", () => {
+    const { exitCode, stderr } = runCli([
+      "check",
+      `--root=${root}`,
+      "--only=README.md:999",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("no example matches --only=README.md:999");
+  });
+
   test("extract --format=json emits the IR without executing", () => {
     const { exitCode, stdout } = runCli([
       "extract",

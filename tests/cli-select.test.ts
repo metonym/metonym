@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { DocumentationSet } from "../src/ir/types";
 import { selectExamples } from "../src/cli/select";
+import type { DocumentationSet } from "../src/ir/types";
 
 function makeDocs(): DocumentationSet {
   return {
