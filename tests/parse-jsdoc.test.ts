@@ -380,6 +380,92 @@ export function test(): void {}`;
   expect(examples.length).toBe(0);
 });
 
+test("jsdoc: @example on an instance method gets owner and title", () => {
+  const source = `export class Calculator {
+  /**
+   * Adds two numbers.
+   * @example
+   * new Calculator().add(2, 3)
+   */
+  add(a: number, b: number): number {
+    return a + b;
+  }
+}`;
+
+  const { examples } = extractJsdoc(source, { file: "calc.ts" });
+
+  expect(examples.length).toBe(1);
+  expect(examples[0].owner).toBe("sym:calc.ts:Calculator");
+  expect(examples[0].title).toBe("Calculator.add › example 1");
+});
+
+test("jsdoc: @example on a static method gets owner and title", () => {
+  const source = `export class Calculator {
+  /**
+   * @example
+   * Calculator.zero()
+   */
+  static zero(): number {
+    return 0;
+  }
+}`;
+
+  const { examples } = extractJsdoc(source, { file: "calc.ts" });
+
+  expect(examples.length).toBe(1);
+  expect(examples[0].owner).toBe("sym:calc.ts:Calculator");
+  expect(examples[0].title).toBe("Calculator.zero › example 1");
+});
+
+test("jsdoc: @example on a getter gets owner and title", () => {
+  const source = `export class Box {
+  /**
+   * @example
+   * new Box().value
+   */
+  get value(): number {
+    return 1;
+  }
+}`;
+
+  const { examples } = extractJsdoc(source, { file: "box.ts" });
+
+  expect(examples.length).toBe(1);
+  expect(examples[0].owner).toBe("sym:box.ts:Box");
+  expect(examples[0].title).toBe("Box.value › example 1");
+});
+
+test("jsdoc: @example on a constructor gets owner and title", () => {
+  const source = `export class Widget {
+  /**
+   * @example
+   * new Widget()
+   */
+  constructor() {}
+}`;
+
+  const { examples } = extractJsdoc(source, { file: "widget.ts" });
+
+  expect(examples.length).toBe(1);
+  expect(examples[0].owner).toBe("sym:widget.ts:Widget");
+  expect(examples[0].title).toBe("Widget.constructor › example 1");
+});
+
+test("jsdoc: @example on a member of a non-exported class has no owner", () => {
+  const source = `class Internal {
+  /**
+   * @example
+   * new Internal().run()
+   */
+  run(): void {}
+}`;
+
+  const { examples } = extractJsdoc(source, { file: "internal.ts" });
+
+  expect(examples.length).toBe(1);
+  expect(examples[0].owner).toBeUndefined();
+});
+
 test("jsdoc: unknown fence attribute produces a warning with the right line", () => {
   const source = `/**
  * Test.

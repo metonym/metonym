@@ -72,6 +72,7 @@ export function extractJsdoc(
   for (const block of blocks) {
     let owner: string | undefined;
     let declName: string | undefined;
+    let memberName: string | undefined;
 
     const declLine = findNextNonBlank(lines, block.endLine);
     if (declLine !== -1) {
@@ -84,6 +85,15 @@ export function extractJsdoc(
         const isExported = /^\s*export\s+/.test(lines[declLine]);
         if (isExported) {
           owner = symbolId(file, declName);
+        }
+      } else {
+        const memberMatch = lines[declLine].match(CLASS_MEMBER_REGEX);
+        if (memberMatch) {
+          const className = findEnclosingExportedClass(lines, declLine);
+          if (className) {
+            owner = symbolId(file, className);
+            memberName = `${className}.${memberMatch[1]}`;
+          }
         }
       }
     }
@@ -109,7 +119,7 @@ export function extractJsdoc(
 
           foundExamples = true;
           const id = allocator(fence.code);
-          const titlePrefix = declName || file;
+          const titlePrefix = memberName || declName || file;
           const exampleTitle = `${titlePrefix} › example ${exampleCounter}`;
 
           // Fence lines are 1-indexed in the @example section; section.startLine is 1-indexed in the file.
@@ -177,7 +187,7 @@ export function extractJsdoc(
         if (nonBlankContent) {
           foundExamples = true;
           const id = allocator(section.text);
-          const titlePrefix = declName || file;
+          const titlePrefix = memberName || declName || file;
           const exampleTitle = `${titlePrefix} › example ${exampleCounter}`;
 
           const example: Example = {
@@ -382,6 +392,38 @@ function extractExampleSections(
   }
 
   return sections;
+}
+
+/** A class member declaration (method, accessor, static, or constructor). */
+const CLASS_MEMBER_REGEX =
+  /^\s*(?:(?:public|private|protected|static|readonly|async|override|get|set|declare|accessor)\s+)*(#?[A-Za-z_$][\w$]*)\s*[(<:=]/;
+
+const EXPORTED_CLASS_REGEX =
+  /^\s*export\s+(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/;
+
+function indentOf(line: string): number {
+  let i = 0;
+  while (i < line.length && (line[i] === " " || line[i] === "\t")) i++;
+  return i;
+}
+
+/**
+ * Scan upward from a class member's line for the nearest enclosing
+ * `export class` at a strictly smaller indent. Non-exported classes yield
+ * no owner (unchanged behaviour for members of internal classes).
+ */
+function findEnclosingExportedClass(
+  lines: string[],
+  memberLine: number,
+): string | undefined {
+  const memberIndent = indentOf(lines[memberLine]);
+  for (let i = memberLine - 1; i >= 0; i--) {
+    const match = lines[i].match(EXPORTED_CLASS_REGEX);
+    if (match && indentOf(lines[i]) < memberIndent) {
+      return match[1];
+    }
+  }
+  return undefined;
 }
 
 function findNextNonBlank(lines: string[], startLine: number): number {
