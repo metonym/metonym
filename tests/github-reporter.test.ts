@@ -46,7 +46,8 @@ describe("reportGithub", () => {
           status: "failed",
           durationMs: 1,
           failure: {
-            message: "expect(received).toBe(expected)\nExpected: 5\nReceived: 6",
+            message:
+              "expect(received).toBe(expected)\nExpected: 5\nReceived: 6",
             doc: { file: "README.md", line: 18, column: 27 },
             generated: { file: "README.md.test.ts", line: 4, column: 5 },
           },
@@ -113,9 +114,7 @@ describe("reportGithub", () => {
     };
 
     const out = capture(() => reportGithub(result));
-    expect(out).toContain(
-      "title=Documentation example failed (unmapped)::",
-    );
+    expect(out).toContain("title=Documentation example failed (unmapped)::");
     expect(out).toContain("file=.metonym/tests/README.md.test.ts,line=4,");
   });
 
