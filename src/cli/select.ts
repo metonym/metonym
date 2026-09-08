@@ -13,9 +13,15 @@ export interface SelectOptions {
    * Keep examples matching any of these entries. Each entry matches an
    * example id exactly, a prefix of it (e.g. `ex:README.md:44a5`), or
    * `<docFile>:<startLine>` (e.g. `README.md:18`). An entry that matches
-   * nothing is a usage error.
+   * nothing is a usage error, unless `strict` is false.
    */
   only?: string[];
+  /**
+   * When false, an `--only` entry matching nothing in this document set
+   * yields zero examples instead of throwing. Used by `--workspaces`,
+   * where one `--only` id is expected to match in exactly one package.
+   */
+  strict?: boolean;
 }
 
 function matchesOnly(example: Example, entry: string): boolean {
@@ -34,7 +40,7 @@ export function selectExamples(
     keep = new Set();
     for (const entry of opts.only) {
       const matches = docs.examples.filter((e) => matchesOnly(e, entry));
-      if (matches.length === 0) {
+      if (matches.length === 0 && opts.strict !== false) {
         throw new UsageError(`no example matches --only=${entry}`);
       }
       for (const m of matches) keep.add(m.id);

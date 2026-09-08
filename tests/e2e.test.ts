@@ -775,6 +775,161 @@ describe("run hardening: --timeout, nothing to run", () => {
   });
 });
 
+describe("check --workspaces", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "metonym-workspaces-e2e-"));
+    await Bun.write(
+      join(root, "package.json"),
+      JSON.stringify({ workspaces: ["packages/*"] }),
+    );
+
+    await Bun.write(
+      join(root, "packages/a/package.json"),
+      JSON.stringify({ name: "a-pkg", exports: { ".": "./src/index.ts" } }),
+    );
+    await Bun.write(
+      join(root, "packages/a/src/index.ts"),
+      [
+        "export function add(a: number, b: number): number {",
+        "  return a + b;",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    await Bun.write(
+      join(root, "packages/a/README.md"),
+      [
+        "# a-pkg",
+        "",
+        "```ts",
+        'import { add } from "a-pkg"',
+        "expect(add(2, 3)).toBe(5)",
+        "```",
+        "",
+      ].join("\n"),
+    );
+
+    await Bun.write(
+      join(root, "packages/b/package.json"),
+      JSON.stringify({ name: "b-pkg" }),
+    );
+    await Bun.write(
+      join(root, "packages/b/README.md"),
+      ["# b-pkg", "", "```ts", "expect(1).toBe(2)", "```", ""].join("\n"),
+    );
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  test("runs check in every workspace package, exits 1, prints both headers", () => {
+    const { exitCode, stderr } = runCli([
+      "check",
+      `--root=${root}`,
+      "--workspaces",
+    ]);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("packages/a");
+    expect(stderr).toContain("packages/b");
+    expect(stderr).toContain("✓ a-pkg › example 1");
+    expect(stderr).toContain("✗ b-pkg › example 1");
+  });
+
+  test("--reporter=json has one entry per package with correct totals", () => {
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      "--workspaces",
+      "--reporter=json",
+    ]);
+    expect(exitCode).toBe(1);
+    const result = JSON.parse(stdout);
+    expect(result.packages.length).toBe(2);
+    const a = result.packages.find(
+      (p: { package: string }) => p.package === "packages/a",
+    );
+    const b = result.packages.find(
+      (p: { package: string }) => p.package === "packages/b",
+    );
+    expect(a.totals).toMatchObject({ total: 1, passed: 1, failed: 0 });
+    expect(b.totals).toMatchObject({ total: 1, passed: 0, failed: 1 });
+    expect(result.totals).toMatchObject({ total: 2, passed: 1, failed: 1 });
+  });
+
+  test("--only=<b's id> runs exactly one example", () => {
+    const list = runCli([
+      "check",
+      `--root=${join(root, "packages/b")}`,
+      "--list",
+    ]);
+    const bId = list.stdout.trim().split("\t")[0];
+
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      "--workspaces",
+      `--only=${bId}`,
+      "--reporter=json",
+    ]);
+    expect(exitCode).toBe(1);
+    const result = JSON.parse(stdout);
+    expect(result.totals.total).toBe(1);
+    const b = result.packages.find(
+      (p: { package: string }) => p.package === "packages/b",
+    );
+    expect(b.totals.total).toBe(1);
+    const a = result.packages.find(
+      (p: { package: string }) => p.package === "packages/a",
+    );
+    expect(a.totals.total).toBe(0);
+  });
+
+  test("--list --workspaces prefixes docFile with <pkg>/", () => {
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      "--workspaces",
+      "--list",
+    ]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("packages/a/README.md:4");
+    expect(stdout).toContain("packages/b/README.md:4");
+  });
+
+  test("--watch with --workspaces is a usage error", () => {
+    const { exitCode, stderr } = runCli([
+      "check",
+      `--root=${root}`,
+      "--workspaces",
+      "--watch",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("--watch is not supported with --workspaces");
+  });
+
+  test("--workspaces on a project with no workspaces field is a usage error", async () => {
+    const noWsRoot = await mkdtemp(join(tmpdir(), "metonym-no-ws-e2e-"));
+    try {
+      await Bun.write(
+        join(noWsRoot, "package.json"),
+        JSON.stringify({ name: "solo-pkg" }),
+      );
+      const { exitCode, stderr } = runCli([
+        "check",
+        `--root=${noWsRoot}`,
+        "--workspaces",
+      ]);
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain("matched no packages");
+    } finally {
+      await rm(noWsRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);

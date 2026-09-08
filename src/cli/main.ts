@@ -24,6 +24,7 @@ import {
   TOOL_VERSION,
 } from "../ir/types";
 import { scan } from "../scan/scan";
+import { discoverWorkspaces } from "../scan/workspaces";
 import { c } from "./colors";
 import { reportPretty } from "./reporter";
 import { selectExamples } from "./select";
@@ -67,6 +68,7 @@ const KNOWN_FLAGS = new Set([
   "timeout",
   "bail",
   "no-color",
+  "workspaces",
 ]);
 
 // `--changed` and `--bail` deliberately excluded: they keep their optional
@@ -217,6 +219,7 @@ Flags:
   --timeout=<ms>                      per-test timeout (check/build --run)
   --bail[=<n>]                        stop after n failures, default 1 (check/build --run)
   --watch                             re-run on file changes (check only)
+  --workspaces                        run check in every package.json#workspaces package
   --run                               build: execute examples to annotate statuses
   --no-config                         ignore metonym.config.ts (package.json#metonym still applies)
   --no-color                          disable colored output (also respects NO_COLOR/FORCE_COLOR)
@@ -440,7 +443,9 @@ async function checkOnce(
   project: Project,
   args: Args,
   signal?: AbortSignal,
+  opts?: { report?: boolean; strictOnly?: boolean },
 ): Promise<RunResult> {
+  const report = opts?.report ?? true;
   const full = args.flags.has("full");
   let failedOnly: string[] | undefined;
   if (args.flags.has("failed")) {
@@ -456,6 +461,7 @@ async function checkOnce(
   selectExamples(docs, {
     filter: strFlag(args.flags, "filter"),
     only: failedOnly ?? onlyFlag(args.flags),
+    strict: opts?.strictOnly ?? true,
   });
   if (args.flags.has("changed") && !full) {
     const { selectAffected } = await import("../graph/select");
@@ -491,24 +497,250 @@ async function checkOnce(
     bail: bailFlag(args),
     signal,
   });
-  // Explicit --reporter=pretty opts out of the GitHub Actions auto-select.
-  const reporter =
-    strFlag(args.flags, "reporter") ??
-    (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
-  if (reporter === "json") {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  } else if (reporter === "github") {
-    const { reportGithub } = await import("./reporters/github");
-    reportGithub(result);
-    await reportPretty(result, project.root);
-  } else if (reporter === "junit") {
-    const { reportJunit } = await import("./reporters/junit");
-    process.stdout.write(reportJunit(result));
-  } else {
-    await reportPretty(result, project.root);
+  if (report) {
+    // Explicit --reporter=pretty opts out of the GitHub Actions auto-select.
+    const reporter =
+      strFlag(args.flags, "reporter") ??
+      (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
+    if (reporter === "json") {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    } else if (reporter === "github") {
+      const { reportGithub } = await import("./reporters/github");
+      reportGithub(result);
+      await reportPretty(result, project.root);
+    } else if (reporter === "junit") {
+      const { reportJunit } = await import("./reporters/junit");
+      process.stdout.write(reportJunit(result));
+    } else {
+      await reportPretty(result, project.root);
+    }
   }
   await writeLastRun(project, result);
   return result;
+}
+
+/** Prints a broken (non-cleanly-completed) run's stderr and error line. */
+function printBrokenRun(result: RunResult): void {
+  if (result.stderr) {
+    for (const line of result.stderr.split("\n")) {
+      process.stderr.write(`${c.dim(`  ${line}`)}\n`);
+    }
+  }
+  process.stderr.write(
+    `${c.red("error: test run did not complete cleanly (see skipped examples above)")}\n`,
+  );
+}
+
+/** `--workspaces` flags forwarded from the root invocation into each package. */
+const WORKSPACE_CARRIED_FLAGS = [
+  "analysis",
+  "no-config",
+  "filter",
+  "only",
+  "changed",
+  "timeout",
+  "bail",
+] as const;
+
+function carriedFlags(
+  flags: Map<string, string | true>,
+): Map<string, string | true> {
+  const out = new Map<string, string | true>();
+  for (const name of WORKSPACE_CARRIED_FLAGS) {
+    const v = flags.get(name);
+    if (v !== undefined) out.set(name, v);
+  }
+  return out;
+}
+
+/**
+ * Loads one workspace package's project. Positional paths from the root
+ * invocation only apply to a package when they start with that package's
+ * directory (stripped to package-relative); otherwise they're ignored for
+ * that package, i.e. it runs unfiltered.
+ */
+async function loadPackageProject(
+  rootProject: Project,
+  pkg: string,
+  args: Args,
+): Promise<Project> {
+  const overrides: Record<string, unknown> = {};
+  const analysis = strFlag(args.flags, "analysis");
+  if (analysis) overrides.analysis = analysis;
+  const project = await scan({
+    root: join(rootProject.root, pkg),
+    config: Object.keys(overrides).length
+      ? (overrides as Partial<Project["config"]>)
+      : undefined,
+    noConfigFile: args.flags.has("no-config"),
+  });
+  const prefix = `${pkg.replace(/\/$/, "")}/`;
+  const paths = args.paths
+    .filter((p) => p === pkg || p.startsWith(prefix))
+    .map((p) => (p === pkg ? "" : p.slice(prefix.length)))
+    .filter((p) => p.length > 0);
+  if (paths.length > 0) {
+    const match = (f: string) =>
+      paths.some((p) => f === p || f.startsWith(`${p.replace(/\/$/, "")}/`));
+    project.docFiles = project.docFiles.filter(match);
+    project.sourceFiles = project.sourceFiles.filter(match);
+  }
+  return project;
+}
+
+function mergeTotals(totalsList: RunResult["totals"][]): RunResult["totals"] {
+  const totals = {
+    total: 0,
+    passed: 0,
+    failed: 0,
+    pending: 0,
+    skipped: 0,
+    durationMs: 0,
+    cached: 0,
+  };
+  for (const t of totalsList) {
+    totals.total += t.total;
+    totals.passed += t.passed;
+    totals.failed += t.failed;
+    totals.pending += t.pending;
+    totals.skipped += t.skipped;
+    totals.durationMs += t.durationMs;
+    totals.cached += t.cached ?? 0;
+  }
+  return totals;
+}
+
+/** `check --workspaces --list`: per-package listing, never generates or runs anything. */
+async function listWorkspaces(
+  rootProject: Project,
+  pkgs: string[],
+  args: Args,
+): Promise<number> {
+  const json = strFlag(args.flags, "reporter") === "json";
+  const packages: { package: string; examples: unknown[] }[] = [];
+  for (const pkg of pkgs) {
+    const project = await loadPackageProject(rootProject, pkg, args);
+    const docs = await extractFor(project, false, {
+      skipAnalysis: !checkNeedsAnalysis(project, args),
+    });
+    selectExamples(docs, {
+      filter: strFlag(args.flags, "filter"),
+      only: onlyFlag(args.flags),
+      strict: false,
+    });
+    if (json) {
+      packages.push({
+        package: pkg,
+        examples: docs.examples.map((e) => ({
+          id: e.id,
+          kind: e.kind,
+          language: e.language,
+          docFile: e.source.file,
+          line: e.source.start.line,
+          title: e.title,
+          ...(e.group ? { group: e.group } : {}),
+        })),
+      });
+    } else {
+      for (const e of docs.examples) {
+        process.stdout.write(
+          `${e.id}\t${e.kind}\t${pkg}/${e.source.file}:${e.source.start.line}\t${e.title}\n`,
+        );
+      }
+    }
+  }
+  if (json) {
+    process.stdout.write(
+      `${JSON.stringify({
+        tool: { name: TOOL_NAME, version: TOOL_VERSION },
+        packages,
+      })}\n`,
+    );
+  }
+  return 0;
+}
+
+/** `check --workspaces`: runs `checkOnce` per package.json#workspaces package. */
+async function checkWorkspaces(
+  rootProject: Project,
+  args: Args,
+  signal?: AbortSignal,
+): Promise<number> {
+  const pkgs = await discoverWorkspaces(rootProject.root);
+  if (pkgs.length === 0) {
+    throw new UsageError(
+      "--workspaces: package.json#workspaces matched no packages",
+    );
+  }
+
+  if (args.flags.has("list")) {
+    return listWorkspaces(rootProject, pkgs, args);
+  }
+
+  const reporter =
+    strFlag(args.flags, "reporter") ??
+    (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
+
+  const entries: { package: string; result: RunResult }[] = [];
+  let failedOrBroken = false;
+
+  for (const pkg of pkgs) {
+    const project = await loadPackageProject(rootProject, pkg, args);
+    const pkgArgs: Args = {
+      command: args.command,
+      paths: [],
+      flags: carriedFlags(args.flags),
+    };
+    const result = await checkOnce(project, pkgArgs, signal, {
+      report: false,
+      strictOnly: false,
+    });
+    entries.push({ package: pkg, result });
+
+    if (result.exitCode === 130) return 130;
+
+    if (result.totals.total === 0) {
+      process.stderr.write(`${c.bold(pkg)}: no examples\n`);
+    } else if (reporter === "pretty" || reporter === "github") {
+      // `github` also prints the pretty report to stderr, same as checkOnce.
+      process.stderr.write(`${c.bold(pkg)}\n`);
+      await reportPretty(result, project.root);
+      if (result.exitCode !== 0 && result.totals.failed === 0) {
+        printBrokenRun(result);
+      }
+      if (reporter === "github") {
+        const { reportGithub } = await import("./reporters/github");
+        reportGithub(result);
+      }
+    } else if (reporter === "junit") {
+      const { reportJunit } = await import("./reporters/junit");
+      process.stdout.write(reportJunit(result));
+    }
+
+    if (result.totals.failed > 0 || result.exitCode !== 0) {
+      failedOrBroken = true;
+    }
+  }
+
+  if (reporter === "json") {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          tool: { name: TOOL_NAME, version: TOOL_VERSION },
+          schema: "run@1",
+          packages: entries.map((e) => ({
+            package: e.package,
+            ...e.result,
+          })),
+          totals: mergeTotals(entries.map((e) => e.result.totals)),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  }
+
+  return failedOrBroken ? 1 : 0;
 }
 
 async function main(): Promise<number> {
@@ -549,6 +781,12 @@ async function run(): Promise<number> {
       process.on("SIGTERM", onInterrupt);
       try {
         let project = await loadProject(args);
+        if (args.flags.has("workspaces")) {
+          if (args.flags.has("watch")) {
+            throw new UsageError("--watch is not supported with --workspaces");
+          }
+          return await checkWorkspaces(project, args, controller.signal);
+        }
         if (!args.flags.has("watch")) {
           const result = await checkOnce(project, args, controller.signal);
           if (result.exitCode === 130) return 130;
@@ -556,14 +794,7 @@ async function run(): Promise<number> {
           // itself broke (e.g. a generated file failed to load) — never exit 0.
           if (result.totals.failed > 0) return 1;
           if (result.exitCode !== 0) {
-            if (result.stderr) {
-              for (const line of result.stderr.split("\n")) {
-                process.stderr.write(`${c.dim(`  ${line}`)}\n`);
-              }
-            }
-            process.stderr.write(
-              `${c.red("error: test run did not complete cleanly (see skipped examples above)")}\n`,
-            );
+            printBrokenRun(result);
             return 1;
           }
           return 0;

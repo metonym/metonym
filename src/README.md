@@ -386,10 +386,26 @@ paths, not glob patterns).
 | `--bail[=<n>]` | Stop after `n` failures (default 1), forwarded to `bun test --bail` |
 | `--watch` | Re-run on file changes; runs until interrupted (ctrl-c exits cleanly) |
 | `--full` | Bypass the result cache, execute every example |
+| `--workspaces` | Run `check` in every `package.json#workspaces` package (see [Monorepos](#monorepos)). Not compatible with `--watch`. |
 
 Exit codes: `0` all passed, `1` one or more examples failed (or the run
 didn't complete cleanly), `2` a usage error (unknown flag, invalid flag
 value, or path arguments that match no files).
+
+### Monorepos
+
+`check --workspaces` discovers packages from the root `package.json#workspaces`
+globs (array or `{ packages: [...] }` form) and runs `check` in each one,
+printing a `<package>` header before each package's report. `--filter`,
+`--only`, `--changed`, `--analysis`, `--no-config`, `--timeout`, and `--bail`
+are forwarded to every package; positional paths only apply to the package(s)
+they're rooted under. `--reporter=json` prints one merged document
+(`{ tool, packages: [{ package, ...RunResult }], totals }`) instead of one
+document per package. A package with no examples prints `<package>: no
+examples` and doesn't affect the exit code; the overall exit code is `1` if
+any package fails or breaks. Each package keeps its own result cache under
+its own `.metonym/` — a monorepo CI cache should key on `**/.metonym`, not
+just the root's (see [`docs/github-actions.md`](../docs/github-actions.md)).
 
 ### extract
 
