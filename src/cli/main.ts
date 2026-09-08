@@ -51,6 +51,7 @@ const KNOWN_FLAGS = new Set([
   "full",
   "format",
   "filter",
+  "only",
   "reporter",
   "changed",
   "watch",
@@ -68,9 +69,29 @@ const VALUE_FLAGS = new Set([
   "analysis",
   "format",
   "filter",
+  "only",
   "reporter",
   "since",
 ]);
+
+// `--only` is repeatable: a second occurrence appends to the first
+// (comma-joined) rather than overwriting it, so `--only=a --only=b` and
+// `--only=a,b` mean the same thing.
+function setFlagValue(
+  flags: Map<string, string | true>,
+  name: string,
+  value: string,
+): void {
+  if (name === "only") {
+    const existing = flags.get(name);
+    flags.set(
+      name,
+      typeof existing === "string" ? `${existing},${value}` : value,
+    );
+    return;
+  }
+  flags.set(name, value);
+}
 
 function parseArgs(argv: string[]): Args {
   // A leading flag (e.g. `metonym --help`) means no command was given —
@@ -90,7 +111,7 @@ function parseArgs(argv: string[]): Args {
         throw new UsageError(`unknown flag --${name}\nrun 'metonym --help'`);
       }
       if (eq !== -1) {
-        flags.set(name, a.slice(eq + 1));
+        setFlagValue(flags, name, a.slice(eq + 1));
         continue;
       }
       if (
@@ -98,7 +119,7 @@ function parseArgs(argv: string[]): Args {
         i + 1 < rest.length &&
         !rest[i + 1].startsWith("-")
       ) {
-        flags.set(name, rest[i + 1]);
+        setFlagValue(flags, name, rest[i + 1]);
         i++;
         continue;
       }
@@ -150,6 +171,7 @@ Flags:
   --format=<fmt>                      extract/build output format
   --out-dir=<dir>                     output directory
   --filter=<substring>                only run examples whose title matches
+  --only=<id|file:line>               run only these examples (repeatable)
   --reporter=pretty|json              check output format (default pretty)
   --root=<dir>                        project root (default cwd)
   --analysis=auto|shallow|deep        symbol analysis depth (deep needs typescript)
@@ -168,6 +190,11 @@ function strFlag(
 ): string | undefined {
   const v = flags.get(name);
   return typeof v === "string" ? v : undefined;
+}
+
+function onlyFlag(flags: Map<string, string | true>): string[] | undefined {
+  const v = flags.get("only");
+  return typeof v === "string" ? v.split(",") : undefined;
 }
 
 /** Joins `dir` onto `root` unless `dir` is already absolute (e.g. `--out-dir=/tmp/mb`). */
@@ -270,7 +297,10 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
   let docs = await extractFor(project, full, {
     skipAnalysis: !checkNeedsAnalysis(project, args),
   });
-  selectExamples(docs, { filter: strFlag(args.flags, "filter") });
+  selectExamples(docs, {
+    filter: strFlag(args.flags, "filter"),
+    only: onlyFlag(args.flags),
+  });
   if (args.flags.has("changed") && !full) {
     const { selectAffected } = await import("../graph/select");
     const selection = await selectAffected(docs, {
