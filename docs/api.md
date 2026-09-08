@@ -329,9 +329,17 @@ Scan a source file's exports: names, positions, and declaration kinds.
 
 ### `run`
 
-[src/run/run.ts:19](../src/run/run.ts#L19)
+[src/run/run.ts:27](../src/run/run.ts#L27)
 
-`(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string; }): Promise<RunResult>`
+`(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string; timeoutMs?: number; bail?: boolean | number; signal?: AbortSignal; }): Promise<RunResult>`
+
+Run generated tests with `bun test`.
+
+- `@param` opts.timeoutMs - Per-test timeout in ms, forwarded as `--timeout <ms>`.
+- `@param` opts.bail - Stop after the first failure (`true`) or after `n`
+  failures (a number), forwarded as `--bail` / `--bail=<n>`.
+- `@param` opts.signal - Abort the run. An aborted run returns `exitCode: 130`,
+  `junitMissing: true`, `stderr: "aborted"`, with every entry `"skipped"`.
 
 ## src/scan/scan.ts
 

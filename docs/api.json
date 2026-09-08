@@ -422,11 +422,17 @@
     {
       "name": "run",
       "file": "src/run/run.ts",
-      "line": 19,
+      "line": 27,
       "declKind": "function",
-      "signature": "(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string; }): Promise<RunResult>",
-      "description": null,
-      "tags": null,
+      "signature": "(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string; timeoutMs?: number; bail?: boolean | number; signal?: AbortSignal; }): Promise<RunResult>",
+      "description": "Run generated tests with `bun test`.",
+      "tags": {
+        "param": [
+          "opts.timeoutMs - Per-test timeout in ms, forwarded as `--timeout <ms>`.",
+          "opts.bail - Stop after the first failure (`true`) or after `n`\n  failures (a number), forwarded as `--bail` / `--bail=<n>`.",
+          "opts.signal - Abort the run. An aborted run returns `exitCode: 130`,\n  `junitMissing: true`, `stderr: \"aborted\"`, with every entry `\"skipped\"`."
+        ]
+      },
       "typeOnly": false
     },
     {

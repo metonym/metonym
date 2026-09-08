@@ -16,44 +16,110 @@ import type {
 } from "../ir/types";
 import { parseExpectedReceived, parseJUnit, parseStackFrames } from "./junit";
 
+/**
+ * Run generated tests with `bun test`.
+ * @param opts.timeoutMs - Per-test timeout in ms, forwarded as `--timeout <ms>`.
+ * @param opts.bail - Stop after the first failure (`true`) or after `n`
+ *   failures (a number), forwarded as `--bail` / `--bail=<n>`.
+ * @param opts.signal - Abort the run. An aborted run returns `exitCode: 130`,
+ *   `junitMissing: true`, `stderr: "aborted"`, with every entry `"skipped"`.
+ */
 export async function run(
   docs: DocumentationSet,
-  opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string },
+  opts?: {
+    generated?: GeneratedTest[];
+    outDir?: string;
+    bunPath?: string;
+    timeoutMs?: number;
+    bail?: boolean | number;
+    signal?: AbortSignal;
+  },
 ): Promise<RunResult> {
   const outDir = opts?.outDir ?? `${docs.root}/.metonym/tests`;
   const generated = opts?.generated ?? [];
 
   await syncGeneratedFiles(outDir, generated);
 
+  type Entry = SidecarEntry & { path: string };
+  const allEntries: Entry[] = [];
+  for (const gt of generated) {
+    for (const e of gt.map.entries) allEntries.push({ ...e, path: gt.path });
+  }
+
+  // Nothing that requires actually executing bun test to know its outcome
+  // (assertion/throws examples). Skip the spawn entirely.
+  const hasExecutable = allEntries.some(
+    (e) => e.kind === "assertion" || e.kind === "throws",
+  );
+  if (!hasExecutable) {
+    const results = [...allEntries]
+      .sort((a, b) =>
+        a.docFile !== b.docFile
+          ? a.docFile.localeCompare(b.docFile)
+          : a.docCodeStartLine - b.docCodeStartLine,
+      )
+      .map(
+        (entry): ExampleResult => ({
+          exampleId: entry.exampleId,
+          title: entry.title,
+          docFile: entry.docFile,
+          status: entry.kind === "pending" ? "pending" : "skipped",
+          durationMs: 0,
+        }),
+      );
+    return {
+      results,
+      totals: {
+        total: results.length,
+        passed: 0,
+        failed: 0,
+        pending: results.filter((r) => r.status === "pending").length,
+        skipped: results.filter((r) => r.status === "skipped").length,
+        durationMs: 0,
+      },
+      outDir,
+      exitCode: 0,
+      junitMissing: false,
+    };
+  }
+
+  if (opts?.signal?.aborted) {
+    return abortedResult(allEntries, outDir);
+  }
+
   const junitPath = `${outDir}/.junit.xml`;
   const bunPath = opts?.bunPath ?? process.execPath;
+
+  const cmd = [
+    bunPath,
+    "test",
+    outDir,
+    "--reporter=junit",
+    `--reporter-outfile=${junitPath}`,
+  ];
+  if (opts?.timeoutMs !== undefined)
+    cmd.push("--timeout", String(opts.timeoutMs));
+  if (opts?.bail !== undefined && opts.bail !== false) {
+    cmd.push(opts.bail === true ? "--bail" : `--bail=${opts.bail}`);
+  }
 
   let exitCode: number;
   let stderrText: string;
   try {
-    const proc = Bun.spawn(
-      [
-        bunPath,
-        "test",
-        outDir,
-        "--reporter=junit",
-        `--reporter-outfile=${junitPath}`,
-      ],
-      {
-        cwd: docs.root,
-        stdout: "pipe",
-        stderr: "pipe",
-      },
-    );
+    const proc = Bun.spawn(cmd, {
+      cwd: docs.root,
+      stdout: "pipe",
+      stderr: "pipe",
+      signal: opts?.signal,
+    });
 
     exitCode = await proc.exited;
     stderrText = await new Response(proc.stderr).text();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const allEntries: (SidecarEntry & { path: string })[] = [];
-    for (const gt of generated) {
-      for (const e of gt.map.entries) allEntries.push({ ...e, path: gt.path });
+    if (opts?.signal?.aborted) {
+      return abortedResult(allEntries, outDir);
     }
+    const message = err instanceof Error ? err.message : String(err);
     return {
       results: allEntries.map((entry) => ({
         exampleId: entry.exampleId,
@@ -77,6 +143,10 @@ export async function run(
     };
   }
 
+  if (opts?.signal?.aborted) {
+    return abortedResult(allEntries, outDir);
+  }
+
   let junitText = "";
   let junitMissing = false;
   try {
@@ -87,14 +157,6 @@ export async function run(
   }
 
   const junitCases = parseJUnit(junitText);
-
-  // Sidecar entries come straight from the maps we just wrote — no need to
-  // read them back from disk.
-  type Entry = SidecarEntry & { path: string };
-  const allEntries: Entry[] = [];
-  for (const gt of generated) {
-    for (const e of gt.map.entries) allEntries.push({ ...e, path: gt.path });
-  }
 
   // Indexes so matching is linear in (cases + entries), not cases × entries.
   // Lists preserve allEntries order, which the original linear scans relied on.
@@ -322,6 +384,33 @@ async function syncGeneratedFiles(
       await fs.unlink(filePath).catch(() => undefined);
     }),
   );
+}
+
+function abortedResult(
+  allEntries: (SidecarEntry & { path: string })[],
+  outDir: string,
+): RunResult {
+  return {
+    results: allEntries.map((entry) => ({
+      exampleId: entry.exampleId,
+      title: entry.title,
+      docFile: entry.docFile,
+      status: "skipped",
+      durationMs: 0,
+    })),
+    totals: {
+      total: allEntries.length,
+      passed: 0,
+      failed: 0,
+      pending: 0,
+      skipped: allEntries.length,
+      durationMs: 0,
+    },
+    outDir,
+    exitCode: 130,
+    junitMissing: true,
+    stderr: "aborted",
+  };
 }
 
 function genSpanKey(e: {
