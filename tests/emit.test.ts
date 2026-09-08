@@ -877,7 +877,81 @@ test("document with only no-run examples still generates file", () => {
   const docSet = createDocSet([doc], [ex]);
   const generated = generate(docSet);
 
-  expect(generated).toHaveLength(0);
+  expect(generated).toHaveLength(1);
+  expect(generated[0].diagnostics).toBeUndefined();
+  expect(generated[0].code).toContain("describe(");
+});
+
+test("document with only a broken no-run fence still generates a file with a diagnostic", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+
+  const ex: Example = {
+    id: "ex:test.md:1",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 5, column: 1, offset: 50 },
+      end: { line: 6, column: 1, offset: 100 },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 4, column: 1, offset: 40 },
+      end: { line: 7, column: 1, offset: 110 },
+    },
+    language: "ts",
+    code: "const = {",
+    kind: "no-run",
+    title: "Broken no-run example",
+  };
+
+  const docSet = createDocSet([doc], [ex]);
+  const generated = generate(docSet);
+
+  expect(generated).toHaveLength(1);
+  expect(generated[0].diagnostics).toBeDefined();
+  expect(generated[0].diagnostics?.[0]).toContain(
+    "no-run example failed to transpile",
+  );
+});
+
+test("a malformed example body yields a generate-time parse diagnostic naming the doc file", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+
+  const ex: Example = {
+    id: "ex:test.md:1",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 5, column: 1, offset: 50 },
+      end: { line: 6, column: 1, offset: 100 },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 4, column: 1, offset: 40 },
+      end: { line: 7, column: 1, offset: 110 },
+    },
+    language: "ts",
+    code: "const = {",
+    kind: "assertion",
+    title: "Malformed example",
+  };
+
+  const docSet = createDocSet([doc], [ex]);
+  const [generated] = generate(docSet);
+
+  expect(generated.diagnostics).toBeDefined();
+  expect(generated.diagnostics?.[0]).toContain("test.md");
+  expect(generated.diagnostics?.[0]).toContain("generated test does not parse");
 });
 
 test("empty document list produces empty output", () => {

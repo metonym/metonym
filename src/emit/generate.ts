@@ -511,8 +511,19 @@ function generateTestFile(
 
   code.push(`});\n`);
 
+  const fullCode = code.join("");
+
+  try {
+    getTranspiler(fileExtension).transformSync(fullCode);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    diagnostics.push(
+      `${document.file}: generated test does not parse — ${message}`,
+    );
+  }
+
   return {
-    code: code.join(""),
+    code: fullCode,
     path: testFileName,
     map: {
       version: 1,
@@ -526,7 +537,9 @@ function generateTestFile(
 
 /**
  * Generate test files from a DocumentationSet.
- * One GeneratedTest per Document with executable examples.
+ * One GeneratedTest per Document that has any (non-ignored) examples, even
+ * when they're all `no-run` — that's the only way their transpile
+ * diagnostics reach the caller.
  *
  * @param docs - The documentation set to generate tests from
  * @param opts - Optional generation options (e.g., jsxImportSource for tsx/jsx examples)
@@ -549,13 +562,6 @@ export function generate(
 
     const examples = byDoc.get(document.id);
     if (!examples) {
-      continue;
-    }
-
-    const hasExecutable = examples.some(
-      (ex) => ex.kind !== "ignored" && ex.kind !== "no-run",
-    );
-    if (!hasExecutable) {
       continue;
     }
 
