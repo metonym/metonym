@@ -395,7 +395,9 @@ async function run(): Promise<number> {
       const docs = await extractFor(project, args.flags.has("full"));
       const format = args.flags.get("format") ?? "json";
       if (format === "json") {
-        process.stdout.write(`${JSON.stringify(docs, null, 2)}\n`);
+        process.stdout.write(
+          `${JSON.stringify({ ...docs, root: "." }, null, 2)}\n`,
+        );
         return 0;
       }
       if (format === "jsonl") {

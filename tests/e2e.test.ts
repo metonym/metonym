@@ -130,6 +130,17 @@ describe("e2e fixture project", () => {
     expect(kinds).toEqual(["assertion", "assertion", "assertion", "pending"]);
   });
 
+  test("extract --format=json replaces the absolute root with '.'", () => {
+    const { exitCode, stdout } = runCli([
+      "extract",
+      `--root=${root}`,
+      "--format=json",
+    ]);
+    expect(exitCode).toBe(0);
+    const ir = JSON.parse(stdout);
+    expect(ir.root).toBe(".");
+  });
+
   test("extract --format=jsonl emits one example per line", () => {
     const { exitCode, stdout } = runCli([
       "extract",
