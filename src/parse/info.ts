@@ -41,8 +41,41 @@ const LANG_ALIASES: Record<string, string> = {
   cjs: "js",
 };
 
+/**
+ * Split an info string on whitespace, honouring `"…"`/`'…'` quoting (no
+ * escapes) so a quoted value like `group="my group"` stays one token, with
+ * the surrounding quotes stripped.
+ */
+function tokenizeInfo(info: string): string[] {
+  const tokens: string[] = [];
+  const n = info.length;
+  let i = 0;
+  while (i < n) {
+    while (i < n && /\s/.test(info[i])) i++;
+    if (i >= n) break;
+
+    let token = "";
+    while (i < n && !/\s/.test(info[i])) {
+      const ch = info[i];
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        i++;
+        const start = i;
+        while (i < n && info[i] !== quote) i++;
+        token += info.slice(start, i);
+        if (i < n) i++; // skip closing quote
+      } else {
+        token += ch;
+        i++;
+      }
+    }
+    tokens.push(token);
+  }
+  return tokens;
+}
+
 export function parseInfoString(info: string): InfoString {
-  const tokens = info.trim().split(/\s+/).filter(Boolean);
+  const tokens = tokenizeInfo(info.trim());
   const rawLang = (tokens[0] ?? "").toLowerCase();
   const lang = LANG_ALIASES[rawLang] ?? rawLang;
   const attrs = tokens.slice(1);
