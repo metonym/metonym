@@ -483,6 +483,70 @@ test("group merge: multiple examples with same group", () => {
   }
 });
 
+test("group merge: genCodeStartLine is exact for every example, not just the first", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1", "ex:test.md:2"],
+  };
+
+  const ex1: Example = {
+    id: "ex:test.md:1",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 5, column: 1, offset: 50 },
+      end: { line: 6, column: 1, offset: 100 },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 4, column: 1, offset: 40 },
+      end: { line: 7, column: 1, offset: 110 },
+    },
+    language: "ts",
+    code: "const db = {};",
+    kind: "assertion",
+    group: "g",
+    title: "Group - part 1",
+  };
+
+  const ex2: Example = {
+    id: "ex:test.md:2",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 15, column: 1, offset: 150 },
+      end: { line: 16, column: 1, offset: 200 },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 14, column: 1, offset: 140 },
+      end: { line: 17, column: 1, offset: 210 },
+    },
+    language: "ts",
+    code: "expect(db).toBeDefined();",
+    kind: "assertion",
+    group: "g",
+    title: "Group - part 2",
+  };
+
+  const docSet = createDocSet([doc], [ex1, ex2]);
+  const [generated] = generate(docSet);
+  const lines = generated.code.split("\n");
+
+  const bodyByExampleId: Record<string, string> = {
+    "ex:test.md:1": "const db = {};",
+    "ex:test.md:2": "expect(db).toBeDefined();",
+  };
+
+  expect(generated.map.entries).toHaveLength(2);
+  for (const entry of generated.map.entries) {
+    const firstBodyLine = lines[entry.genCodeStartLine - 1].trim();
+    expect(firstBodyLine).toBe(bodyByExampleId[entry.exampleId]);
+  }
+});
+
 test("nested doc path generates nested test file path", () => {
   const doc: Document = {
     id: "doc:docs/guide.md",

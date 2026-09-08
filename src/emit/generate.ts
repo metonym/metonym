@@ -252,7 +252,7 @@ function generateTest(
       testLines.push(
         `    // metonym:example ${example.id} source=${example.source.file}:${example.source.start.line}`,
       );
-      counter.addLine(testLines[testLines.length - 1]);
+      counter.advance(1);
     }
 
     const bodyLines = example.code.split("\n");
