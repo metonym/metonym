@@ -212,6 +212,8 @@ async function extractFor(
   } else {
     ({ docs, fileKeys } = await extractCachedWithKeys(project));
   }
+  for (const w of docs.warnings ?? [])
+    process.stderr.write(`${c.yellow(`warning: ${w}`)}\n`);
   if (opts?.skipAnalysis) return docs;
   const { mode, tsPath } = resolveAnalysisMode(
     project.root,

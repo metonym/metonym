@@ -280,6 +280,41 @@ code()
   expect(examples[0].language).toBe("ts");
 });
 
+test("markdown: unknown fence attribute produces a warning with the right line", () => {
+  const text = `# Heading
+
+\`\`\`ts no_run
+code()
+\`\`\``;
+
+  const { examples, warnings } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(1);
+  expect(warnings).toEqual([
+    'test.md:3: unknown fence attribute "no_run" (known: ignore, no-run, throws, pending, group=<name>)',
+  ]);
+});
+
+test("markdown: fence with attribute as language warns that nothing will run", () => {
+  const text = `\`\`\`no-run
+code()
+\`\`\``;
+
+  const { examples, warnings } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(0);
+  expect(warnings).toEqual([
+    "test.md:1: fence has attributes but no language; nothing will run",
+  ]);
+});
+
+test("markdown: no warnings for a clean fence", () => {
+  const text = `\`\`\`ts
+code()
+\`\`\``;
+
+  const { warnings } = extractMarkdown(text, { file: "test.md" });
+  expect(warnings).toEqual([]);
+});
+
 test("markdown: fence inside a multi-line HTML comment is not extracted", () => {
   const text = `<!--
 \`\`\`ts

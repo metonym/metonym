@@ -380,6 +380,24 @@ export function test(): void {}`;
   expect(examples.length).toBe(0);
 });
 
+test("jsdoc: unknown fence attribute produces a warning with the right line", () => {
+  const source = `/**
+ * Test.
+ * @example
+ * \`\`\`ts no_run
+ * code()
+ * \`\`\`
+ */
+export function test(): void {}`;
+
+  const { examples, warnings } = extractJsdoc(source, { file: "test.ts" });
+
+  expect(examples.length).toBe(1);
+  expect(warnings).toEqual([
+    'test.ts:4: unknown fence attribute "no_run" (known: ignore, no-run, throws, pending, group=<name>)',
+  ]);
+});
+
 test("jsdoc: @example followed by other tags", () => {
   const source = `/**
  * Test.

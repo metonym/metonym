@@ -313,6 +313,33 @@ describe("group= doc-line remap", () => {
   });
 });
 
+describe("extraction warnings", () => {
+  test("metonym extract prints a warning for a typo'd attribute and still exits 0", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metonym-e2e-warnings-"));
+    try {
+      await Bun.write(
+        join(root, "package.json"),
+        JSON.stringify({ name: "warn-pkg" }),
+      );
+      await Bun.write(
+        join(root, "README.md"),
+        ["# warn-pkg", "", "```ts no_run", "code()", "```", ""].join("\n"),
+      );
+
+      const { exitCode, stderr } = runCli([
+        "extract",
+        `--root=${root}`,
+        "--format=json",
+      ]);
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain("warning:");
+      expect(stderr).toContain('unknown fence attribute "no_run"');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);

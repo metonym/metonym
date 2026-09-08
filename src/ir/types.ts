@@ -147,6 +147,8 @@ export interface DocumentationSet {
   examples: Example[]; // flat, ordered (file path, then offset)
   symbols: SymbolInfo[];
   relations: Relation[];
+  /** Non-fatal extraction issues (unknown fence attributes, skipped files). Sorted; omitted when empty. */
+  warnings?: string[];
 }
 
 // ── Generated tests & sidecar maps ───────────────────────────────────────

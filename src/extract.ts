@@ -31,6 +31,7 @@ export interface FilePart {
   document: Document | null;
   examples: Example[];
   symbols: SymbolInfo[];
+  warnings?: string[];
 }
 
 export async function extractDocFile(
@@ -40,8 +41,17 @@ export async function extractDocFile(
   text?: string,
 ): Promise<FilePart> {
   const body = text ?? (await Bun.file(`${root}/${file}`).text());
-  const { document, examples } = extractMarkdown(body, { file, languages });
-  return { file, document, examples, symbols: [] };
+  const { document, examples, warnings } = extractMarkdown(body, {
+    file,
+    languages,
+  });
+  return {
+    file,
+    document,
+    examples,
+    symbols: [],
+    warnings: warnings.length > 0 ? warnings : undefined,
+  };
 }
 
 export async function extractSourceFile(
@@ -54,7 +64,7 @@ export async function extractSourceFile(
   const lines = body.split("\n");
   const lineOffsets = lineOffsetsOf(lines);
   const blocks = extractJsdocBlocks(body, lines);
-  const { document, examples } = extractJsdoc(body, {
+  const { document, examples, warnings } = extractJsdoc(body, {
     file,
     languages,
     blocks,
@@ -72,17 +82,25 @@ export async function extractSourceFile(
     if (Object.keys(dc.tags).length > 0) sym.tags = dc.tags;
   }
 
-  return { file, document, examples, symbols };
+  return {
+    file,
+    document,
+    examples,
+    symbols,
+    warnings: warnings.length > 0 ? warnings : undefined,
+  };
 }
 
 export function assembleDocumentationSet(
   root: string,
   parts: FilePart[],
+  extraWarnings?: string[],
 ): DocumentationSet {
   const documents: Document[] = [];
   const examples: Example[] = [];
   const symbols: SymbolInfo[] = [];
   const relations: Relation[] = [];
+  const warnings: string[] = extraWarnings ? [...extraWarnings] : [];
 
   for (const part of parts) {
     if (part.document) {
@@ -90,6 +108,7 @@ export function assembleDocumentationSet(
       examples.push(...part.examples);
     }
     symbols.push(...part.symbols);
+    if (part.warnings) warnings.push(...part.warnings);
   }
 
   documents.sort((a, b) => a.file.localeCompare(b.file));
@@ -119,6 +138,8 @@ export function assembleDocumentationSet(
     }
   }
 
+  warnings.sort();
+
   return {
     irVersion: IR_VERSION,
     tool: { name: TOOL_NAME, version: TOOL_VERSION },
@@ -127,6 +148,7 @@ export function assembleDocumentationSet(
     examples,
     symbols,
     relations,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 

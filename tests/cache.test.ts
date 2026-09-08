@@ -255,6 +255,37 @@ describe("cache", () => {
       }
     });
 
+    it("extraction warnings round-trip through the cache", async () => {
+      const root = await createFixture("extract-warnings-roundtrip");
+      try {
+        await fs.mkdir(`${root}/src`, { recursive: true });
+        await fs.writeFile(
+          `${root}/package.json`,
+          JSON.stringify({ name: "test-pkg" }),
+        );
+        await fs.writeFile(
+          `${root}/README.md`,
+          `# Test\n\n\`\`\`ts no_run\ncode()\n\`\`\`\n`,
+        );
+
+        const config = await loadConfig(root);
+        const project = await scan(config);
+
+        const docs1 = await extractCached(project);
+        expect(docs1.warnings?.length).toBe(1);
+        expect(docs1.warnings?.[0]).toContain(
+          'unknown fence attribute "no_run"',
+        );
+
+        // Second call is served entirely from the cache; the warning must
+        // still be present, proving it round-tripped through the index.
+        const docs2 = await extractCached(project);
+        expect(docs2.warnings).toEqual(docs1.warnings);
+      } finally {
+        await cleanupFixture(root);
+      }
+    });
+
     it("clearCache removes entire cache directory", async () => {
       const root = await createFixture("extract-clear-cache");
       try {

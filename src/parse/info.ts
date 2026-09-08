@@ -115,3 +115,33 @@ export function isExecutableLang(
 ): lang is Example["language"] {
   return configured.includes(lang) && EXECUTABLE_LANGS.has(lang);
 }
+
+const KNOWN_ATTRS_DESC = "ignore, no-run, throws, pending, group=<name>";
+const KNOWN_ATTR_TOKENS = new Set(["ignore", "no-run", "throws", "pending"]);
+
+/**
+ * Warnings for one fence's parsed info string: unknown attributes, and the
+ * case where the language slot itself holds a known attribute name (so the
+ * fence has no real language and nothing will run).
+ */
+export function infoStringWarnings(
+  file: string,
+  fenceLine: number,
+  info: InfoString,
+): string[] {
+  const warnings: string[] = [];
+
+  if (KNOWN_ATTR_TOKENS.has(info.lang) || info.lang.startsWith("group=")) {
+    warnings.push(
+      `${file}:${fenceLine}: fence has attributes but no language; nothing will run`,
+    );
+  }
+
+  for (const attr of info.unknown) {
+    warnings.push(
+      `${file}:${fenceLine}: unknown fence attribute "${attr}" (known: ${KNOWN_ATTRS_DESC})`,
+    );
+  }
+
+  return warnings;
+}
