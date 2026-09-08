@@ -103,6 +103,41 @@ describe("e2e fixture project", () => {
     expect(stderr).toContain("✓ add › example 1"); // JSDoc example
   });
 
+  test("check --failed --list lists only the example that failed last run", () => {
+    // Relies on the previous test's `check` having just recorded a failing
+    // run in .metonym/cache/last-run.json.
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      "--failed",
+      "--list",
+    ]);
+    expect(exitCode).toBe(0);
+    const lines = stdout.trim().split("\n");
+    expect(lines.length).toBe(1);
+    expect(lines[0]).toContain("Broken claim › example 1");
+  });
+
+  test("check --failed with no previous run is a usage error", async () => {
+    const freshRoot = await mkdtemp(join(tmpdir(), "metonym-e2e-nolastrun-"));
+    try {
+      await Bun.write(
+        join(freshRoot, "package.json"),
+        JSON.stringify({ name: "fresh-pkg" }),
+      );
+      await Bun.write(join(freshRoot, "README.md"), "# fresh-pkg\n");
+      const { exitCode, stderr } = runCli([
+        "check",
+        `--root=${freshRoot}`,
+        "--failed",
+      ]);
+      expect(exitCode).toBe(2);
+      expect(stderr).toContain("no previous run recorded");
+    } finally {
+      await rm(freshRoot, { recursive: true, force: true });
+    }
+  });
+
   test("check --filter narrows to matching examples and exits 0", () => {
     const { exitCode, stderr } = runCli([
       "check",
