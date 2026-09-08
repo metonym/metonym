@@ -193,6 +193,17 @@ function escapeRegExp(str: string): string {
 }
 
 /**
+ * `references` relations for a documentation set: the ones already on
+ * `docs.relations` (deep analysis), or computed on demand (shallow mode).
+ * Single entry point so callers never duplicate the "if none, compute" check.
+ */
+export function ensureReferences(docs: DocumentationSet): Relation[] {
+  const existing = docs.relations.filter((r) => r.kind === "references");
+  if (existing.length > 0) return existing;
+  return exampleReferences(docs);
+}
+
+/**
  * Get the set of symbol IDs referenced by at least one example.
  */
 export function exercisedSymbols(docs: DocumentationSet): Set<string> {
