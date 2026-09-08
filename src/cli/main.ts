@@ -243,6 +243,11 @@ async function main(): Promise<number> {
         // itself broke (e.g. a generated file failed to load) — never exit 0.
         if (result.totals.failed > 0) return 1;
         if (result.exitCode !== 0) {
+          if (result.stderr) {
+            for (const line of result.stderr.split("\n")) {
+              process.stderr.write(`${c.dim(`  ${line}`)}\n`);
+            }
+          }
           process.stderr.write(
             `${c.red("error: test run did not complete cleanly (see skipped examples above)")}\n`,
           );

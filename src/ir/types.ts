@@ -224,6 +224,14 @@ export interface RunResult {
   /** Raw artifacts for debugging. */
   outDir: string;
   exitCode: number;
+  /**
+   * Child process stderr, populated only when `exitCode !== 0`, truncated
+   * to the last 8 KiB.
+   */
+  stderr?: string;
+  /** True when the JUnit report could not be read (the run broke before
+   * producing results, as opposed to tests failing normally). */
+  junitMissing?: boolean;
 }
 
 // ── Renderers ────────────────────────────────────────────────────────────

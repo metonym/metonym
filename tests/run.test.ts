@@ -384,6 +384,65 @@ describe("README.md", () => {
     }
   });
 
+  test("captures stderr and sets junitMissing on a syntax error", async () => {
+    const tmpRoot = `/tmp/metonym-syntax-${Date.now()}`;
+    await mkdir(tmpRoot, { recursive: true });
+
+    try {
+      const testCode = `import { test } from "bun:test"; test("x", () => { const = ; })`;
+
+      const sidecar: SidecarMap = {
+        version: 1,
+        source: "README.md",
+        testFile: "README.md.test.ts",
+        entries: [
+          {
+            exampleId: "ex:README.md:bad0001",
+            title: "Demo › example 1",
+            kind: "assertion",
+            docFile: "README.md",
+            docCodeStartLine: 10,
+            genCodeStartLine: 1,
+            genCodeEndLine: 1,
+          },
+        ],
+      };
+
+      const generated: GeneratedTest[] = [
+        {
+          path: "README.md.test.ts",
+          code: testCode,
+          map: sidecar,
+        },
+      ];
+
+      const docs: DocumentationSet = {
+        irVersion: 1,
+        tool: { name: "metonym", version: "0.1.0" },
+        root: tmpRoot,
+        documents: [],
+        examples: [],
+        symbols: [],
+        relations: [],
+      };
+
+      const result = await run(docs, {
+        generated,
+        outDir: `${tmpRoot}/.metonym/tests`,
+      });
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.junitMissing).toBe(true);
+      expect(result.stderr).toBeDefined();
+      expect(result.stderr?.toLowerCase()).toContain("error");
+      for (const r of result.results) {
+        expect(r.status).toBe("skipped");
+      }
+    } finally {
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   test("handles missing generated file gracefully", async () => {
     const tmpRoot = `/tmp/metonym-empty-${Date.now()}`;
     await mkdir(tmpRoot, { recursive: true });
