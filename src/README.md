@@ -379,7 +379,9 @@ paths, not glob patterns).
 | `--failed` | Only run examples that failed (or never ran) in the last recorded `check`. Errors if no previous run is recorded. |
 | `--reporter=pretty\|json` | Output format; default `pretty`. With `--list`, `json` prints `{ tool, examples: [{ id, kind, language, docFile, line, title, group? }] }` instead of tab-separated lines |
 | `--changed[=<ref>]` | Only examples affected by git changes since `<ref>` (default: working tree vs `HEAD`), traced through each example's import closure. `<ref>` is compared from its merge-base with `HEAD` (three-dot semantics). Falls back to running everything when the trace is ambiguous. |
-| `--watch` | Re-run on file changes; runs until interrupted |
+| `--timeout=<ms>` | Per-test timeout, forwarded to `bun test --timeout` |
+| `--bail[=<n>]` | Stop after `n` failures (default 1), forwarded to `bun test --bail` |
+| `--watch` | Re-run on file changes; runs until interrupted (ctrl-c exits cleanly) |
 | `--full` | Bypass the result cache, execute every example |
 
 Exit codes: `0` all passed, `1` one or more examples failed (or the run

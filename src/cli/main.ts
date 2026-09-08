@@ -64,10 +64,13 @@ const KNOWN_FLAGS = new Set([
   "check",
   "since",
   "no-config",
+  "timeout",
+  "bail",
 ]);
 
-// `--changed` deliberately excluded: it keeps its optional `=<ref>` form
-// only, since a bare `--changed` is meaningful (all changed examples).
+// `--changed` and `--bail` deliberately excluded: they keep their optional
+// `=<ref>`/`=<n>` form only, since a bare flag is meaningful on its own
+// (all changed examples; stop after the first failure).
 const VALUE_FLAGS = new Set([
   "root",
   "out-dir",
@@ -77,6 +80,7 @@ const VALUE_FLAGS = new Set([
   "only",
   "reporter",
   "since",
+  "timeout",
 ]);
 
 // `--only` is repeatable: a second occurrence appends to the first
@@ -96,6 +100,11 @@ function setFlagValue(
     return;
   }
   flags.set(name, value);
+}
+
+function isPositiveInteger(value: string | true): boolean {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return false;
+  return Number(value) > 0;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -155,6 +164,18 @@ function parseArgs(argv: string[]): Args {
       `invalid --analysis=${String(analysis)} (allowed: auto, shallow, deep)`,
     );
   }
+  const timeout = flags.get("timeout");
+  if (timeout !== undefined && !isPositiveInteger(timeout)) {
+    throw new UsageError(
+      `invalid --timeout=${String(timeout)} (must be a positive integer)`,
+    );
+  }
+  const bail = flags.get("bail");
+  if (bail !== undefined && bail !== true && !isPositiveInteger(bail)) {
+    throw new UsageError(
+      `invalid --bail=${String(bail)} (must be a positive integer)`,
+    );
+  }
 
   return { command, paths, flags };
 }
@@ -185,6 +206,8 @@ Flags:
   --full                              bypass caches, run everything
   --changed[=<ref>]                   check only examples affected by git changes
   --since=<ref>                       impact: diff base ref, default merge-base with origin
+  --timeout=<ms>                      per-test timeout (check/build --run)
+  --bail[=<n>]                        stop after n failures, default 1 (check/build --run)
   --watch                             re-run on file changes (check only)
   --run                               build: execute examples to annotate statuses
   --no-config                         ignore metonym.config.ts (package.json#metonym still applies)
@@ -299,6 +322,17 @@ function checkNeedsAnalysis(project: Project, args: Args): boolean {
   return project.config.analysis === "deep" || args.flags.has("changed");
 }
 
+function timeoutFlag(args: Args): number | undefined {
+  const v = strFlag(args.flags, "timeout");
+  return v === undefined ? undefined : Number(v);
+}
+
+function bailFlag(args: Args): boolean | number | undefined {
+  const v = args.flags.get("bail");
+  if (v === undefined) return undefined;
+  return v === true ? true : Number(v);
+}
+
 function emptyRunResult(project: Project): RunResult {
   return {
     results: [],
@@ -393,7 +427,11 @@ function listExamples(docs: DocumentationSet, json: boolean): void {
   }
 }
 
-async function checkOnce(project: Project, args: Args): Promise<RunResult> {
+async function checkOnce(
+  project: Project,
+  args: Args,
+  signal?: AbortSignal,
+): Promise<RunResult> {
   const full = args.flags.has("full");
   let failedOnly: string[] | undefined;
   if (args.flags.has("failed")) {
@@ -440,6 +478,9 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
     outDir: resolveOutDir(project.root, project.config.outDir),
     full,
     emit,
+    timeoutMs: timeoutFlag(args),
+    bail: bailFlag(args),
+    signal,
   });
   if (args.flags.get("reporter") === "json") {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
@@ -476,51 +517,91 @@ async function run(): Promise<number> {
   switch (args.command) {
     case "check":
     case "test": {
-      let project = await loadProject(args);
-      const result = await checkOnce(project, args);
-      if (!args.flags.has("watch")) {
-        // A nonzero bun-test exit with zero matched failures means the run
-        // itself broke (e.g. a generated file failed to load) — never exit 0.
-        if (result.totals.failed > 0) return 1;
-        if (result.exitCode !== 0) {
-          if (result.stderr) {
-            for (const line of result.stderr.split("\n")) {
-              process.stderr.write(`${c.dim(`  ${line}`)}\n`);
+      const controller = new AbortController();
+      let interrupted = false;
+      const onInterrupt = () => {
+        if (interrupted) return;
+        interrupted = true;
+        controller.abort();
+        process.stderr.write("\ninterrupted\n");
+      };
+      process.on("SIGINT", onInterrupt);
+      process.on("SIGTERM", onInterrupt);
+      try {
+        let project = await loadProject(args);
+        if (!args.flags.has("watch")) {
+          const result = await checkOnce(project, args, controller.signal);
+          if (result.exitCode === 130) return 130;
+          // A nonzero bun-test exit with zero matched failures means the run
+          // itself broke (e.g. a generated file failed to load) — never exit 0.
+          if (result.totals.failed > 0) return 1;
+          if (result.exitCode !== 0) {
+            if (result.stderr) {
+              for (const line of result.stderr.split("\n")) {
+                process.stderr.write(`${c.dim(`  ${line}`)}\n`);
+              }
             }
+            process.stderr.write(
+              `${c.red("error: test run did not complete cleanly (see skipped examples above)")}\n`,
+            );
+            return 1;
           }
-          process.stderr.write(
-            `${c.red("error: test run did not complete cleanly (see skipped examples above)")}\n`,
-          );
+          return 0;
+        }
+
+        process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
+        const { watchProject } = await import("../watch/watch");
+        let watchExitCode = 0;
+        let done: (() => void) | undefined;
+        const watchDone = new Promise<void>((resolve) => {
+          done = resolve;
+        });
+        let watcher: { stop(): void } | undefined;
+        try {
+          watcher = watchProject({
+            root: project.root,
+            config: project.config,
+            onChange: async (files) => {
+              process.stderr.write(`\nchanged: ${files.join(", ")}\n`);
+              try {
+                project = await loadProject(args); // re-scan: files may appear/vanish
+                const result = await checkOnce(
+                  project,
+                  args,
+                  controller.signal,
+                );
+                if (result.exitCode === 130) {
+                  watchExitCode = 130;
+                  watcher?.stop();
+                  done?.();
+                  return;
+                }
+              } catch (err) {
+                const message =
+                  err instanceof Error ? err.message : String(err);
+                process.stderr.write(`${c.red(`error: ${message}`)}\n`);
+              }
+              process.stderr.write(
+                "\nwatching for changes… (ctrl-c to exit)\n",
+              );
+            },
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          process.stderr.write(`${c.red(`error: ${message}`)}\n`);
           return 1;
         }
-        return 0;
-      }
-
-      process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
-      const { watchProject } = await import("../watch/watch");
-      try {
-        watchProject({
-          root: project.root,
-          config: project.config,
-          onChange: async (files) => {
-            process.stderr.write(`\nchanged: ${files.join(", ")}\n`);
-            try {
-              project = await loadProject(args); // re-scan: files may appear/vanish
-              await checkOnce(project, args);
-            } catch (err) {
-              const message = err instanceof Error ? err.message : String(err);
-              process.stderr.write(`${c.red(`error: ${message}`)}\n`);
-            }
-            process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
-          },
+        controller.signal.addEventListener("abort", () => {
+          watcher?.stop();
+          watchExitCode = 130;
+          done?.();
         });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        process.stderr.write(`${c.red(`error: ${message}`)}\n`);
-        return 1;
+        await watchDone; // run until interrupted
+        return watchExitCode;
+      } finally {
+        process.off("SIGINT", onInterrupt);
+        process.off("SIGTERM", onInterrupt);
       }
-      await new Promise(() => {}); // run until interrupted
-      return 0;
     }
 
     case "extract": {
@@ -574,6 +655,7 @@ async function run(): Promise<number> {
         results = await runCached(docs, {
           outDir: resolveOutDir(project.root, project.config.outDir),
           full: args.flags.has("full"),
+          timeoutMs: timeoutFlag(args),
         });
       }
       const outDirFlag = strFlag(args.flags, "out-dir") ?? ".metonym/build";

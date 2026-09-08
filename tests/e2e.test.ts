@@ -651,6 +651,78 @@ describe("coverage command", () => {
   });
 });
 
+describe("run hardening: --timeout, nothing to run", () => {
+  test("--timeout=50 fails a slow example and names the doc line", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metonym-timeout-e2e-"));
+    try {
+      await Bun.write(
+        join(root, "package.json"),
+        JSON.stringify({ name: "demo-pkg" }),
+      );
+      await Bun.write(
+        join(root, "README.md"),
+        [
+          "# demo-pkg",
+          "",
+          "## Slow claim",
+          "",
+          "```ts",
+          "await new Promise((r) => setTimeout(r, 300));",
+          "expect(1).toBe(1);",
+          "```",
+          "",
+        ].join("\n"),
+      );
+
+      const { exitCode, stderr } = runCli([
+        "check",
+        `--root=${root}`,
+        "--timeout=50",
+      ]);
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain("Slow claim › example 1");
+      expect(stderr).toContain("README.md");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("--timeout=abc exits 2", () => {
+    const { exitCode, stderr } = runCli(["check", "--timeout=abc"]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("--timeout=abc");
+  });
+
+  test("a doc with only a no-run fence exits 0 with 0 examples", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metonym-norun-e2e-"));
+    try {
+      await Bun.write(
+        join(root, "package.json"),
+        JSON.stringify({ name: "demo-pkg" }),
+      );
+      await Bun.write(
+        join(root, "README.md"),
+        [
+          "# demo-pkg",
+          "",
+          "## Future API",
+          "",
+          "```ts no-run",
+          'import { multiply } from "demo-pkg"',
+          "```",
+          "",
+        ].join("\n"),
+      );
+
+      const { exitCode, stderr } = runCli(["check", `--root=${root}`]);
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain("0 examples");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);
