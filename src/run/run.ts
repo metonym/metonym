@@ -458,6 +458,7 @@ function buildExampleResult(
 
     const failure: FailureInfo = {
       message: junitCase.failure.message,
+      type: junitCase.failure.type || undefined,
       expected,
       received,
       generated: {

@@ -14,6 +14,14 @@ const MARK: Record<ExampleResult["status"], string> = {
   skipped: "-",
 };
 
+const SLOW_MS = 1000;
+
+function isTimeout(r: ExampleResult): boolean {
+  const failure = r.failure;
+  if (!failure) return false;
+  return failure.type === "TimeoutError" || /timed out/i.test(failure.message);
+}
+
 export async function reportPretty(
   result: RunResult,
   root: string,
@@ -36,13 +44,17 @@ export async function reportPretty(
             ? c.red(MARK.failed)
             : c.yellow(MARK[r.status]);
       const where =
-        r.status === "failed" && r.failure?.doc
-          ? `  ${c.dim(`${r.failure.doc.file}:${r.failure.doc.line}`)}`
-          : r.status === "pending"
-            ? `  ${c.dim("pending")}`
-            : r.status === "passed"
-              ? `  ${c.dim(`(${Math.round(r.durationMs)}ms)`)}`
-              : "";
+        r.status === "failed" && isTimeout(r)
+          ? `  ${c.dim(`timed out after ${Math.round(r.durationMs)}ms`)}`
+          : r.status === "failed" && r.failure?.doc
+            ? `  ${c.dim(`${r.failure.doc.file}:${r.failure.doc.line}`)}`
+            : r.status === "pending"
+              ? `  ${c.dim("pending")}`
+              : r.status === "passed"
+                ? r.durationMs > SLOW_MS
+                  ? `  ${c.yellow(`(${Math.round(r.durationMs)}ms)`)}`
+                  : `  ${c.dim(`(${Math.round(r.durationMs)}ms)`)}`
+                : "";
       out.push(`  ${mark} ${r.title}${where}`);
     }
     out.push("");

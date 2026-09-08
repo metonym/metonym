@@ -109,7 +109,7 @@ and call it for each example in document order.
 
 ### `DEFAULT_CONFIG`
 
-[src/ir/types.ts:303](../src/ir/types.ts#L303)
+[src/ir/types.ts:305](../src/ir/types.ts#L305)
 
 `{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: "auto" | "shallow" | "deep" | undefined; coverage?: { minDocumented?: number; minExamples?: number; minExercised?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }`
 
@@ -154,7 +154,7 @@ Positions are relative to `example.code`, same convention as HoverInfo.
 
 ### `ExampleResult`
 
-[src/ir/types.ts:203](../src/ir/types.ts#L203)
+[src/ir/types.ts:205](../src/ir/types.ts#L205)
 
 `ExampleResult`
 
@@ -194,7 +194,7 @@ offset; `line`/`column` are 1-indexed within the snippet.
 
 ### `MetonymConfig`
 
-[src/ir/types.ts:266](../src/ir/types.ts#L266)
+[src/ir/types.ts:268](../src/ir/types.ts#L268)
 
 `MetonymConfig`
 
@@ -208,7 +208,7 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `Project`
 
-[src/ir/types.ts:311](../src/ir/types.ts#L311)
+[src/ir/types.ts:313](../src/ir/types.ts#L313)
 
 `Project`
 
@@ -220,31 +220,31 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `RenderedFile`
 
-[src/ir/types.ts:241](../src/ir/types.ts#L241)
+[src/ir/types.ts:243](../src/ir/types.ts#L243)
 
 `RenderedFile`
 
 ### `Renderer`
 
-[src/ir/types.ts:256](../src/ir/types.ts#L256)
+[src/ir/types.ts:258](../src/ir/types.ts#L258)
 
 `Renderer<TOptions>`
 
 ### `RenderOptions`
 
-[src/ir/types.ts:251](../src/ir/types.ts#L251)
+[src/ir/types.ts:253](../src/ir/types.ts#L253)
 
 `RenderOptions`
 
 ### `RenderResult`
 
-[src/ir/types.ts:247](../src/ir/types.ts#L247)
+[src/ir/types.ts:249](../src/ir/types.ts#L249)
 
 `RenderResult`
 
 ### `RunResult`
 
-[src/ir/types.ts:214](../src/ir/types.ts#L214)
+[src/ir/types.ts:216](../src/ir/types.ts#L216)
 
 `RunResult`
 

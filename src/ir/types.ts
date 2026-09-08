@@ -191,6 +191,8 @@ export type ExampleStatus = "passed" | "failed" | "pending" | "skipped";
 export interface FailureInfo {
   /** Full failure message from bun (e.g. "expect(received).toBe(expected)…"). */
   message: string;
+  /** JUnit failure/error type, e.g. "TimeoutError", when bun reports one. */
+  type?: string;
   expected?: string;
   received?: string;
   /** Remapped location in the original documentation, when remapping succeeded. */
