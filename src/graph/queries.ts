@@ -147,6 +147,7 @@ export function coverage(docs: DocumentationSet): CoverageReport {
 export function exampleEntryFiles(
   docs: DocumentationSet,
   example: Example,
+  opts?: { topLevel?: string },
 ): string[] {
   const imports: string[] = [];
 
@@ -159,7 +160,7 @@ export function exampleEntryFiles(
   const resolved = new Set<string>();
 
   for (const spec of imports) {
-    const relPath = resolveInternal(docs.root, spec, docs.root);
+    const relPath = resolveInternal(docs.root, spec, docs.root, opts);
     if (relPath !== null) resolved.add(relPath);
   }
 
@@ -179,6 +180,7 @@ export function exampleEntryFiles(
 export async function affectedExamples(
   docs: DocumentationSet,
   changedFiles: string[],
+  opts?: { topLevel?: string },
 ): Promise<Map<string, string[]>> {
   const result = new Map<string, string[]>();
 
@@ -216,7 +218,7 @@ export async function affectedExamples(
   for (const ex of docs.examples) {
     if (result.has(ex.id)) continue;
 
-    const entryFiles = exampleEntryFiles(docs, ex);
+    const entryFiles = exampleEntryFiles(docs, ex, opts);
     if (entryFiles.length === 0) continue;
 
     const cacheKey = JSON.stringify(entryFiles);
@@ -263,6 +265,7 @@ export async function affectedExamples(
             docs.root,
             imp.path,
             `${docs.root}/${dirOfFile}`,
+            opts,
           );
           if (relResolved !== null && !visited.has(relResolved)) {
             queue.push(relResolved);

@@ -1,12 +1,54 @@
 /**
  * Git integration for change detection.
- * Pure functions using Bun.spawnSync; never throws.
+ * Pure functions using Bun.spawnSync; never throws except for a malformed
+ * `since` ref (see `changedFiles`).
  */
+
+import { join } from "node:path";
+import { normalizeAbs, toProjectRelative } from "./paths";
 
 export interface GitDiff {
   available: boolean;
   changedFiles: string[];
   base?: string;
+  /** Git repository top-level (absolute path), when git is available. */
+  topLevel?: string;
+  /** True when `since` was given explicitly or a merge-base was found. */
+  baseResolved: boolean;
+}
+
+function run(
+  args: string[],
+  cwd: string,
+): { exitCode: number; stdout: string } {
+  const result = Bun.spawnSync(["git", ...args], {
+    cwd,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  return { exitCode: result.exitCode, stdout: result.stdout?.toString() ?? "" };
+}
+
+/**
+ * Git prints paths relative to the repository top-level; every consumer of
+ * `changedFiles` compares against paths relative to `root` (which may be a
+ * subdirectory of the repo, e.g. a monorepo package). Re-anchor each line
+ * to `root`, dropping anything that isn't actually under `topLevel`.
+ */
+function mapGitPaths(
+  root: string,
+  topLevel: string,
+  lines: string[],
+): string[] {
+  const normalizedTopLevel = normalizeAbs(topLevel);
+  const mapped: string[] = [];
+  for (const line of lines) {
+    if (!line) continue;
+    const abs = normalizeAbs(join(topLevel, line));
+    if (abs !== normalizedTopLevel && !abs.startsWith(`${normalizedTopLevel}/`))
+      continue;
+    mapped.push(toProjectRelative(root, abs));
+  }
+  return mapped;
 }
 
 /**
@@ -16,120 +58,83 @@ export interface GitDiff {
  * 1. Check if inside a git work tree
  * 2. Find base ref: since ?? merge-base origin/HEAD ?? origin/master ?? origin/main
  * 3. Collect: git diff --name-only [base], git diff --cached, git ls-files untracked
- * 4. Union and sort
+ * 4. Union and sort, all re-anchored to `root`
  */
 export function changedFiles(root: string, since?: string): GitDiff {
-  const isRepoResult = Bun.spawnSync(
-    ["git", "rev-parse", "--is-inside-work-tree"],
-    { cwd: root, stdio: ["pipe", "pipe", "pipe"] },
-  );
-
-  const isRepoOutput = isRepoResult.stdout?.toString().trim();
-  if (isRepoResult.exitCode !== 0 || isRepoOutput !== "true") {
-    return { available: false, changedFiles: [] };
+  if (since?.startsWith("-")) {
+    throw new Error("--since/--changed ref must not start with '-'");
   }
 
+  const isRepoResult = run(["rev-parse", "--is-inside-work-tree"], root);
+  if (isRepoResult.exitCode !== 0 || isRepoResult.stdout.trim() !== "true") {
+    return { available: false, changedFiles: [], baseResolved: false };
+  }
+
+  const topLevelResult = run(["rev-parse", "--show-toplevel"], root);
+  const topLevel =
+    topLevelResult.exitCode === 0 ? topLevelResult.stdout.trim() : root;
+
   let base: string | undefined = since;
+  let baseResolved = base !== undefined;
 
   if (!base) {
-    let mergeBaseResult = Bun.spawnSync(
-      ["git", "merge-base", "HEAD", "origin/HEAD"],
-      {
-        cwd: root,
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    );
-
-    if (mergeBaseResult.exitCode === 0) {
-      base = mergeBaseResult.stdout?.toString().trim();
-    }
-
-    if (!base) {
-      mergeBaseResult = Bun.spawnSync(
-        ["git", "merge-base", "HEAD", "origin/master"],
-        {
-          cwd: root,
-          stdio: ["pipe", "pipe", "pipe"],
-        },
-      );
-
+    for (const candidate of ["origin/HEAD", "origin/master", "origin/main"]) {
+      const mergeBaseResult = run(["merge-base", "HEAD", candidate], root);
       if (mergeBaseResult.exitCode === 0) {
-        base = mergeBaseResult.stdout?.toString().trim();
-      }
-    }
-
-    if (!base) {
-      mergeBaseResult = Bun.spawnSync(
-        ["git", "merge-base", "HEAD", "origin/main"],
-        {
-          cwd: root,
-          stdio: ["pipe", "pipe", "pipe"],
-        },
-      );
-
-      if (mergeBaseResult.exitCode === 0) {
-        base = mergeBaseResult.stdout?.toString().trim();
+        const found = mergeBaseResult.stdout.trim();
+        if (found) {
+          base = found;
+          baseResolved = true;
+          break;
+        }
       }
     }
   }
 
   const changes = new Set<string>();
 
-  // 1. git diff --name-only [base??HEAD]
   const diffRef = base ?? "HEAD";
-  const diffResult = Bun.spawnSync(["git", "diff", "--name-only", diffRef], {
-    cwd: root,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
+  const diffResult = run(
+    ["diff", "--name-only", "--end-of-options", diffRef],
+    root,
+  );
   if (diffResult.exitCode === 0) {
-    const output = diffResult.stdout?.toString().trim();
-    if (output) {
-      for (const line of output.split("\n")) {
-        if (line) changes.add(line);
-      }
-    }
+    for (const p of mapGitPaths(
+      root,
+      topLevel,
+      diffResult.stdout.trim().split("\n"),
+    ))
+      changes.add(p);
   }
 
-  // 2. git diff --name-only --cached
-  const cachedResult = Bun.spawnSync(
-    ["git", "diff", "--name-only", "--cached"],
-    {
-      cwd: root,
-      stdio: ["pipe", "pipe", "pipe"],
-    },
-  );
-
+  const cachedResult = run(["diff", "--name-only", "--cached"], root);
   if (cachedResult.exitCode === 0) {
-    const output = cachedResult.stdout?.toString().trim();
-    if (output) {
-      for (const line of output.split("\n")) {
-        if (line) changes.add(line);
-      }
-    }
+    for (const p of mapGitPaths(
+      root,
+      topLevel,
+      cachedResult.stdout.trim().split("\n"),
+    ))
+      changes.add(p);
   }
 
-  // 3. git ls-files --others --exclude-standard (untracked)
-  const untrackedResult = Bun.spawnSync(
-    ["git", "ls-files", "--others", "--exclude-standard"],
-    {
-      cwd: root,
-      stdio: ["pipe", "pipe", "pipe"],
-    },
+  const untrackedResult = run(
+    ["ls-files", "--others", "--exclude-standard"],
+    root,
   );
-
   if (untrackedResult.exitCode === 0) {
-    const output = untrackedResult.stdout?.toString().trim();
-    if (output) {
-      for (const line of output.split("\n")) {
-        if (line) changes.add(line);
-      }
-    }
+    for (const p of mapGitPaths(
+      root,
+      topLevel,
+      untrackedResult.stdout.trim().split("\n"),
+    ))
+      changes.add(p);
   }
 
   return {
     available: true,
     changedFiles: Array.from(changes).sort(),
     base,
+    topLevel,
+    baseResolved,
   };
 }

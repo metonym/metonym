@@ -52,7 +52,9 @@ export async function selectAffected(
     };
   }
 
-  const affected = await affectedExamples(docs, git.changedFiles);
+  const affected = await affectedExamples(docs, git.changedFiles, {
+    topLevel: git.topLevel,
+  });
 
   const affectedIds = new Set(affected.keys());
   const filteredExamples = docs.examples.filter((ex) => affectedIds.has(ex.id));

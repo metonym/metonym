@@ -534,6 +534,7 @@ async function run(): Promise<number> {
       const project = await loadProject({ ...args, paths: [] });
       const docs = await extractFor(project, args.flags.has("full"));
       let changed: string[];
+      let topLevel: string | undefined;
       if (args.paths.length > 0) {
         changed = args.paths;
       } else {
@@ -546,6 +547,7 @@ async function run(): Promise<number> {
           return 2;
         }
         changed = git.changedFiles;
+        topLevel = git.topLevel;
       }
       if (changed.length === 0) {
         process.stderr.write("no changes detected\n");
@@ -554,7 +556,7 @@ async function run(): Promise<number> {
       const { computeImpact, impactGraph, renderImpactTree } = await import(
         "../graph/impact"
       );
-      const impact = await computeImpact(docs, changed);
+      const impact = await computeImpact(docs, changed, { topLevel });
       if (format === "text") {
         process.stdout.write(renderImpactTree(impact));
       } else if (format === "json") {

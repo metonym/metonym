@@ -44,6 +44,7 @@ export interface Impact {
 export async function computeImpact(
   docs: DocumentationSet,
   changedFiles: string[],
+  opts?: { topLevel?: string },
 ): Promise<Impact> {
   const traces: ImpactTrace[] = [];
   const changedSet = new Set(changedFiles);
@@ -72,6 +73,7 @@ export async function computeImpact(
         docs.root,
         imp.path,
         `${docs.root}/${fileDir}`,
+        opts,
       );
       if (relPath !== null) resolved.add(relPath);
     }
@@ -157,7 +159,7 @@ export async function computeImpact(
   for (const example of docs.examples) {
     if (traces.some((t) => t.exampleId === example.id)) continue;
 
-    const entryFiles = exampleEntryFiles(docs, example);
+    const entryFiles = exampleEntryFiles(docs, example, opts);
     if (entryFiles.length === 0) continue;
 
     for (const entryFile of entryFiles) {
