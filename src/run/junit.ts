@@ -121,16 +121,21 @@ export function parseJUnit(xml: string): JUnitCase[] {
     let status: "passed" | "failed" | "todo" | "skipped" = "passed";
     let failure: JUnitCase["failure"] | undefined;
 
-    const failureMatch =
-      /<failure\s+type="([^"]*)"\s+message="([^"]*)"\s*>([\s\S]*?)<\/failure>/.exec(
+    const failureOrErrorMatch =
+      /<(?:failure|error)\b([^>]*?)\s*\/>|<(?:failure|error)\b([^>]*)>([\s\S]*?)<\/(?:failure|error)>/.exec(
         bodyContent,
       );
-    if (failureMatch) {
+    if (failureOrErrorMatch) {
+      const attrs = failureOrErrorMatch[1] ?? failureOrErrorMatch[2] ?? "";
+      const body = failureOrErrorMatch[3] ?? "";
+      const typeMatch = /type="([^"]*)"/i.exec(attrs);
+      const messageMatch = /message="([^"]*)"/i.exec(attrs);
+
       status = "failed";
       failure = {
-        type: failureMatch[1],
-        message: decodeEntities(failureMatch[2]),
-        body: decodeEntities(failureMatch[3]),
+        type: typeMatch ? decodeEntities(typeMatch[1]) : "",
+        message: messageMatch ? decodeEntities(messageMatch[1]) : "",
+        body: decodeEntities(body),
       };
     }
 
