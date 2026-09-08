@@ -310,4 +310,33 @@ describe("watchProject", () => {
     await waitFor(() => changes.length > 1, 8000);
     expect(changes[1]).toEqual(["test2.md"]);
   }, 10000);
+
+  it("throws a plain Error mentioning recursive watch when fs.watch is unavailable on this platform", () => {
+    const config: MetonymConfig = {
+      root: tempDir,
+      include: ["**/*.md"],
+      exclude: ["**/node_modules/**", "**/.git/**", "**/.metonym/**"],
+      outDir: ".metonym/tests",
+      languages: ["ts", "tsx", "js", "jsx"],
+      inject: true,
+    };
+
+    const unavailableWatch = () => {
+      const err = new Error(
+        "recursive watch is not supported on this platform",
+      ) as NodeJS.ErrnoException;
+      err.code = "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM";
+      throw err;
+    };
+
+    expect(() => {
+      watcher = watchProject({
+        root: tempDir,
+        config,
+        onChange: async () => {},
+        watchImpl: unavailableWatch as unknown as typeof import("node:fs").watch,
+      });
+    }).toThrow(/recursive watch/i);
+    watcher = null;
+  });
 });
