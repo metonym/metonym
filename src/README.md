@@ -465,6 +465,12 @@ example code; only `check`/`test` do.
 That is the right default for your own repo. Treat fenced `ts`/`js` like
 any other test file.
 
+Loading `metonym.config.ts` is also code execution: it is `import()`-ed and
+runs with the same trust as the examples, regardless of which command you
+run. On a tree you have not read, run `metonym extract --no-config`
+(`package.json#metonym` still applies) — after that, nothing metonym does
+executes project code.
+
 If the tree is untrusted (a clone you have not read, a service that runs
 other people's docs), isolate the process, or run only `metonym extract`.
 `node:vm` is not a sandbox and cannot run these examples.
