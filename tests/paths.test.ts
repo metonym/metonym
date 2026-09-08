@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  isWithin,
   normalizeAbs,
   resolveInternal,
   toProjectRelative,
@@ -42,6 +43,26 @@ describe("normalizeAbs", () => {
 
   test("leaves non-/private paths untouched", () => {
     expect(normalizeAbs("/tmp/x")).toBe("/tmp/x");
+  });
+});
+
+describe("isWithin", () => {
+  test("true for the dir itself", () => {
+    expect(isWithin("/repo", "/repo")).toBe(true);
+  });
+
+  test("true for a nested path", () => {
+    expect(isWithin("/repo", "/repo/src/index.ts")).toBe(true);
+  });
+
+  test("false for a sibling path", () => {
+    expect(isWithin("/repo/packages/foo", "/repo/packages/bar/x.ts")).toBe(
+      false,
+    );
+  });
+
+  test("false for a path that merely shares a prefix", () => {
+    expect(isWithin("/repo/foo", "/repo/foobar/x.ts")).toBe(false);
   });
 });
 

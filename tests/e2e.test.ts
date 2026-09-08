@@ -167,6 +167,33 @@ describe("e2e fixture project", () => {
     }
   });
 
+  test("impact: ./relative, absolute, and bare relative path args produce identical JSON", () => {
+    const bare = runCli([
+      "impact",
+      `--root=${root}`,
+      "--format=json",
+      "src/index.ts",
+    ]);
+    const dotRelative = runCli([
+      "impact",
+      `--root=${root}`,
+      "--format=json",
+      "./src/index.ts",
+    ]);
+    const absolute = runCli([
+      "impact",
+      `--root=${root}`,
+      "--format=json",
+      `${root}/src/index.ts`,
+    ]);
+
+    expect(bare.exitCode).toBe(0);
+    expect(dotRelative.exitCode).toBe(0);
+    expect(absolute.exitCode).toBe(0);
+    expect(JSON.parse(dotRelative.stdout)).toEqual(JSON.parse(bare.stdout));
+    expect(JSON.parse(absolute.stdout)).toEqual(JSON.parse(bare.stdout));
+  });
+
   test("build --run --out-dir doesn't let generated-test pruning delete its own rendered output", async () => {
     // `--out-dir` means "where do rendered docs go" for `build`, not "where
     // do generated tests go" — if it leaked into the latter too, `--run`'s

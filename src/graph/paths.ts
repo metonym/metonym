@@ -26,6 +26,15 @@ export function toProjectRelative(root: string, p: string): string {
   return rel === "" ? "." : rel;
 }
 
+/** Whether absolute path `p` is `dir` itself or lies inside it. */
+export function isWithin(dir: string, p: string): boolean {
+  const normalizedDir = normalizeAbs(dir);
+  const normalizedP = normalizeAbs(p);
+  return (
+    normalizedP === normalizedDir || normalizedP.startsWith(`${normalizedDir}/`)
+  );
+}
+
 /**
  * Resolve a module specifier from `fromDir` and classify it as internal to
  * the project. Returns `null` for node_modules packages and for anything
@@ -49,18 +58,10 @@ export function resolveInternal(
   const normalized = normalizeAbs(absPath);
   if (normalized.includes("/node_modules/")) return null;
 
-  const normalizedRoot = normalizeAbs(root);
-  const insideRoot =
-    normalized === normalizedRoot ||
-    normalized.startsWith(`${normalizedRoot}/`);
-
-  let insideTopLevel = false;
-  if (opts?.topLevel) {
-    const normalizedTopLevel = normalizeAbs(opts.topLevel);
-    insideTopLevel =
-      normalized === normalizedTopLevel ||
-      normalized.startsWith(`${normalizedTopLevel}/`);
-  }
+  const insideRoot = isWithin(root, normalized);
+  const insideTopLevel = opts?.topLevel
+    ? isWithin(opts.topLevel, normalized)
+    : false;
 
   if (!insideRoot && !insideTopLevel) return null;
 

@@ -536,7 +536,24 @@ async function run(): Promise<number> {
       let changed: string[];
       let topLevel: string | undefined;
       if (args.paths.length > 0) {
-        changed = args.paths;
+        const { gitTopLevel } = await import("../graph/git");
+        const { isWithin, toProjectRelative } = await import("../graph/paths");
+        const { resolve: pathResolve } = await import("node:path");
+        topLevel = gitTopLevel(project.root);
+        changed = [];
+        for (const p of args.paths) {
+          const rel = toProjectRelative(project.root, p);
+          if (rel.startsWith("../")) {
+            const abs = pathResolve(project.root, rel);
+            if (topLevel === undefined || !isWithin(topLevel, abs)) {
+              process.stderr.write(
+                `warning: ${p} is outside the project root; ignored\n`,
+              );
+              continue;
+            }
+          }
+          changed.push(rel);
+        }
       } else {
         const { changedFiles } = await import("../graph/git");
         const git = changedFiles(project.root, strFlag(args.flags, "since"));
