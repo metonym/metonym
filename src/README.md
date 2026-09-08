@@ -415,13 +415,14 @@ relations between them.
 
 Reports which exports lack documentation or executable examples, with
 declaration locations. Percentages count exports that have examples. An
-"exercised by examples" count is which APIs fences actually call (deep
-analysis, when available). Barrel re-exports are excluded from the totals.
-With deep analysis, examples that fail to type-check are listed separately —
-see [Deep analysis](#deep-analysis-optional).
+"exercised by examples" count is which APIs fences actually call — a
+README example that imports and calls an export documents and exercises
+it, no JSDoc `@example` required. Barrel re-exports are excluded from the
+totals. With deep analysis, examples that fail to type-check are listed
+separately — see [Deep analysis](#deep-analysis-optional).
 
 `--check` enforces thresholds from `"metonym": { "coverage": { … } }` (or
-the `coverage` field of `metonym.config.ts`) and exits `2` if any gate
+the `coverage` field of `metonym.config.ts`) and exits `1` if any gate
 fails, `0` otherwise:
 
 | Gate | Meaning |
@@ -432,8 +433,9 @@ fails, `0` otherwise:
 | `failOnUndocumented` | Fail if any export has zero documentation |
 | `failOnTypeErrors` | Fail if any example has a type error (deep analysis only) |
 
-`--reporter=json` emits the report (plus the `exercised` symbol id set) as
-JSON instead of the text summary.
+`--reporter=json` emits the report (including the `exercised` symbol id
+array) as JSON instead of the text summary. With `--check`, the JSON also
+carries `gates: { pass, failures }`.
 
 ### impact
 
