@@ -63,6 +63,15 @@ function transformImportLine(line: string): string {
     }
   }
 
+  // Handle: import x = require("m")
+  const requireImport = importStmt.match(
+    /^import\s+(\w+)\s*=\s*require\(\s*["'](.+?)["']\s*\)\s*;?\s*$/,
+  );
+  if (requireImport) {
+    const [, name, path] = requireImport;
+    return `${leadingWhitespace}const ${name} = await import(${JSON.stringify(path)}).then((m) => m.default ?? m);`;
+  }
+
   // Handle: import "m"
   const bareImport = importStmt.match(/^import\s+["'](.+?)["']\s*;?\s*$/);
   if (bareImport) {
