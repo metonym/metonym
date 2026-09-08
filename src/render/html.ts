@@ -164,8 +164,32 @@ export const htmlRenderer: Renderer = {
   },
 };
 
+// markdown.ts annotates each example with a `> metonym: <symbol> <status>…`
+// blockquote; Bun.markdown.html has no way to attach attributes to it, so
+// tag the resulting <blockquote> here to give the `blockquote[data-metonym]`
+// CSS rules something to match.
+const STATUS_BLOCKQUOTE = /<blockquote>\n<p>metonym: (.*?)<\/p>\n<\/blockquote>/g;
+
+function statusFromText(text: string): "passed" | "failed" | "pending" | null {
+  if (text.includes("✓")) return "passed";
+  if (text.includes("✗")) return "failed";
+  if (text.includes("○")) return "pending";
+  return null;
+}
+
+function tagStatusBlockquotes(html: string): string {
+  return html.replace(STATUS_BLOCKQUOTE, (match, text: string) => {
+    const status = statusFromText(text);
+    if (!status) return match;
+    return match.replace(
+      "<blockquote>",
+      `<blockquote data-metonym="${status}">`,
+    );
+  });
+}
+
 function renderMarkdownToHtml(markdown: string, docPath: string): string {
-  const htmlBody = Bun.markdown.html(markdown);
+  const htmlBody = tagStatusBlockquotes(Bun.markdown.html(markdown));
 
   return `<!doctype html>
 <html>
