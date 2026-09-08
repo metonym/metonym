@@ -41,7 +41,8 @@ describe("reportJunit", () => {
           status: "failed",
           durationMs: 5,
           failure: {
-            message: "expect(received).toBe(expected)\nExpected: 6\nReceived: 5",
+            message:
+              "expect(received).toBe(expected)\nExpected: 6\nReceived: 5",
             doc: { file: "README.md", line: 15, column: 1 },
             generated: { file: "README.md.test.ts", line: 4 },
           },
@@ -125,7 +126,9 @@ describe("reportJunit", () => {
     const cases = parseJUnit(xml);
     // parseJUnit only entity-decodes the failure type/message/body, not
     // name/classname, so the raw XML-escaped form round-trips for name.
-    expect(cases[0].name).toBe(`Title with &lt;tag&gt; &amp; &quot;quotes&quot;`);
+    expect(cases[0].name).toBe(
+      `Title with &lt;tag&gt; &amp; &quot;quotes&quot;`,
+    );
     expect(cases[0].failure?.message).toBe(`expected <a> & "b"`);
   });
 
