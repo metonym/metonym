@@ -60,4 +60,24 @@ describe("loadConfig", () => {
     const config = await loadConfig(root);
     expect(config.outDir).toBe("from-config-file");
   });
+
+  test("unknown key rejects with a suggestion", async () => {
+    await writeFile(
+      resolve(root, "metonym.config.ts"),
+      "export default { includes: ['README.md'] };\n",
+    );
+
+    await expect(loadConfig(root)).rejects.toThrow('did you mean "include"?');
+  });
+
+  test("unknown key inside coverage rejects", async () => {
+    await writeFile(
+      resolve(root, "metonym.config.ts"),
+      "export default { coverage: { minDocs: 80 } };\n",
+    );
+
+    await expect(loadConfig(root)).rejects.toThrow(
+      'unknown key "coverage.minDocs"',
+    );
+  });
 });
