@@ -42,13 +42,15 @@ export async function run(
   );
 
   const exitCode = await proc.exited;
-  await new Response(proc.stderr).text();
+  const stderrText = await new Response(proc.stderr).text();
 
   let junitText = "";
+  let junitMissing = false;
   try {
     junitText = await fs.readFile(junitPath, "utf-8");
   } catch {
     // JUnit file doesn't exist - treat all as skipped with stderr message
+    junitMissing = true;
   }
 
   const junitCases = parseJUnit(junitText);
@@ -215,11 +217,19 @@ export async function run(
     else if (r.status === "skipped") totals.skipped++;
   }
 
+  const TRUNCATE_BYTES = 8 * 1024;
+  const stderr =
+    exitCode !== 0 && stderrText
+      ? stderrText.slice(-TRUNCATE_BYTES)
+      : undefined;
+
   return {
     results,
     totals,
     outDir,
     exitCode,
+    ...(stderr !== undefined ? { stderr } : {}),
+    ...(junitMissing ? { junitMissing } : {}),
   };
 }
 
