@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { copyFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { DEFAULT_CONFIG, type MetonymConfig } from "./ir/types.ts";
 
@@ -77,11 +79,23 @@ export async function loadConfig(
       ? "metonym.config.js"
       : "metonym.config.ts";
     configFileName = configName;
+    // Bun's ESM loader caches local file imports by resolved path and
+    // ignores query strings, so a plain `import()` (even with a `?v=…`
+    // cache-buster appended) would keep returning the first-loaded config
+    // forever, breaking `check --watch` reloads. Importing a throwaway
+    // copy next to the original (same directory, so the config's own
+    // relative imports still resolve) gives every load a distinct path.
+    const tmpPath = configPath.replace(/\.(ts|js)$/, `.${randomUUID()}.$1`);
     try {
-      const mod = (await import(`file://${configPath}`)) as {
-        default?: unknown;
-      };
-      configFromFile = mod.default;
+      await copyFile(configPath, tmpPath);
+      try {
+        const mod = (await import(`file://${tmpPath}`)) as {
+          default?: unknown;
+        };
+        configFromFile = mod.default;
+      } finally {
+        await rm(tmpPath, { force: true });
+      }
     } catch (err) {
       throw new Error(`Failed to load ${configName}: ${errorMessage(err)}`, {
         cause: err,
