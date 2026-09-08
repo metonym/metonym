@@ -51,6 +51,9 @@ Documentation example failed
 4 examples · 2 passed · 1 failed · 1 pending
 ```
 
+See [`docs/github-actions.md`](../docs/github-actions.md) for a copy-pasteable
+GitHub Actions workflow, including caching and `--changed` on pull requests.
+
 ## Authoring
 
 `ts` / `tsx` / `js` / `jsx` fenced blocks in your docs are executable by
