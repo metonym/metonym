@@ -365,16 +365,27 @@ async function run(): Promise<number> {
 
       process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
       const { watchProject } = await import("../watch/watch");
-      watchProject({
-        root: project.root,
-        config: project.config,
-        onChange: async (files) => {
-          process.stderr.write(`\nchanged: ${files.join(", ")}\n`);
-          project = await loadProject(args); // re-scan: files may appear/vanish
-          await checkOnce(project, args);
-          process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
-        },
-      });
+      try {
+        watchProject({
+          root: project.root,
+          config: project.config,
+          onChange: async (files) => {
+            process.stderr.write(`\nchanged: ${files.join(", ")}\n`);
+            try {
+              project = await loadProject(args); // re-scan: files may appear/vanish
+              await checkOnce(project, args);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              process.stderr.write(`${c.red(`error: ${message}`)}\n`);
+            }
+            process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`${c.red(`error: ${message}`)}\n`);
+        return 1;
+      }
       await new Promise(() => {}); // run until interrupted
       return 0;
     }

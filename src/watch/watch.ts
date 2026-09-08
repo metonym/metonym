@@ -11,8 +11,10 @@ export function watchProject(opts: {
   config: MetonymConfig;
   onChange: (changedFiles: string[]) => void | Promise<void>;
   debounceMs?: number;
+  /** Injectable in tests to simulate platforms where recursive `fs.watch` throws. */
+  watchImpl?: typeof watch;
 }): Watcher {
-  const { root, config, onChange, debounceMs = 150 } = opts;
+  const { root, config, onChange, debounceMs = 150, watchImpl = watch } = opts;
 
   let watcher: ReturnType<typeof watch> | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -116,7 +118,7 @@ export function watchProject(opts: {
   }
 
   try {
-    watcher = watch(
+    watcher = watchImpl(
       root,
       { recursive: true },
       (_eventType: string, filename: string | Buffer | null) => {
