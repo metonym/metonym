@@ -20,12 +20,12 @@ import {
   type DocumentationSet,
   type Project,
   type RunResult,
-  TOOL_NAME,
   TOOL_VERSION,
 } from "../ir/types";
 import { scan } from "../scan/scan";
 import { discoverWorkspaces } from "../scan/workspaces";
 import { c } from "./colors";
+import { stampJson } from "./json";
 import { reportPretty } from "./reporter";
 import { selectExamples } from "./select";
 import { UsageError } from "./usage-error";
@@ -417,18 +417,19 @@ async function readFailedIds(root: string): Promise<string[]> {
 function listExamples(docs: DocumentationSet, json: boolean): void {
   if (json) {
     process.stdout.write(
-      `${JSON.stringify({
-        tool: { name: TOOL_NAME, version: TOOL_VERSION },
-        examples: docs.examples.map((e) => ({
-          id: e.id,
-          kind: e.kind,
-          language: e.language,
-          docFile: e.source.file,
-          line: e.source.start.line,
-          title: e.title,
-          ...(e.group ? { group: e.group } : {}),
-        })),
-      })}\n`,
+      `${JSON.stringify(
+        stampJson("list", {
+          examples: docs.examples.map((e) => ({
+            id: e.id,
+            kind: e.kind,
+            language: e.language,
+            docFile: e.source.file,
+            line: e.source.start.line,
+            title: e.title,
+            ...(e.group ? { group: e.group } : {}),
+          })),
+        }),
+      )}\n`,
     );
     return;
   }
@@ -503,7 +504,9 @@ async function checkOnce(
       strFlag(args.flags, "reporter") ??
       (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
     if (reporter === "json") {
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      process.stdout.write(
+        `${JSON.stringify(stampJson("run", result), null, 2)}\n`,
+      );
     } else if (reporter === "github") {
       const { reportGithub } = await import("./reporters/github");
       reportGithub(result);
@@ -959,7 +962,9 @@ async function run(): Promise<number> {
 
       if (args.flags.get("reporter") === "json") {
         const json = gateResult ? { ...report, gates: gateResult } : report;
-        process.stdout.write(`${JSON.stringify(json, null, 2)}\n`);
+        process.stdout.write(
+          `${JSON.stringify(stampJson("coverage", json), null, 2)}\n`,
+        );
       } else {
         const s = report.symbols;
         const at = (sym: {
@@ -1075,7 +1080,9 @@ async function run(): Promise<number> {
       if (format === "text") {
         process.stdout.write(renderImpactTree(impact));
       } else if (format === "json") {
-        process.stdout.write(`${JSON.stringify(impact, null, 2)}\n`);
+        process.stdout.write(
+          `${JSON.stringify(stampJson("impact", impact), null, 2)}\n`,
+        );
       } else {
         const { serializeDot, serializeMermaid } = await import(
           "../graph/emit"
