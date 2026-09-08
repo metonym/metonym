@@ -158,14 +158,57 @@ function transformImportLine(line: string): string {
   return line;
 }
 
+const EXPORT_DECL_KEYWORDS =
+  /^export\s+(const|let|var|function|async\s+function|class|enum|type|interface)\b/;
+
+/** `export { ... }`, `export * from "m"`, `export { a } from "m"`. */
+function isReexportLine(trimmed: string): boolean {
+  return /^export\s*(\*|\{)/.test(trimmed);
+}
+
+function isCompleteExportStatement(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    /from\s+["'][^"']+["']\s*;?\s*$/.test(trimmed) ||
+    /^export\s*\{[^{}]*\}\s*;?\s*$/.test(trimmed) ||
+    /^export\s*\*\s*;?\s*$/.test(trimmed)
+  );
+}
+
+/** `export const x = 1` → `const x = 1` (drops the export keyword only). */
+function transformExportDeclLine(line: string): string {
+  return line.replace(/^(\s*)export\s+/, "$1");
+}
+
 /**
- * Transform body lines: rewrite top-level static imports in place.
- * Imports spanning multiple lines are joined, transformed onto the first
- * line, and padded with continuation-marker comments to keep line count.
+ * `export default <expr>` → `const __default = <expr>` when the rest is a
+ * keepable expression, otherwise a no-op comment.
+ */
+function transformExportDefaultLine(line: string): string {
+  const match = line.match(/^(\s*)export\s+default\s*(.*)$/);
+  if (!match) return line;
+  const [, leadingWhitespace, rest] = match;
+  const trimmedRest = rest.trim().replace(/;\s*$/, "");
+  if (trimmedRest === "") {
+    return `${leadingWhitespace}// metonym: export default removed`;
+  }
+  return `${leadingWhitespace}const __default = ${trimmedRest};`;
+}
+
+/**
+ * Transform body lines: rewrite top-level static imports in place, strip
+ * top-level `export`, and drop shebangs. Statements spanning multiple lines
+ * (imports, `export … from`) are joined, transformed onto the first line,
+ * and padded with continuation-marker comments to keep line count.
  */
 function transformBodyLines(lines: string[]): string[] {
   const result: string[] = [];
   let i = 0;
+
+  if (lines.length > 0 && lines[0].startsWith("#!")) {
+    result.push("// metonym: shebang removed");
+    i = 1;
+  }
 
   while (i < lines.length) {
     const trimmed = lines[i].trimStart();
@@ -181,6 +224,32 @@ function transformBodyLines(lines: string[]): string[] {
         result.push("// metonym: import continued");
       }
       i += consumed;
+      continue;
+    }
+
+    if (isReexportLine(trimmed)) {
+      const { consumed } = joinStatementLines(
+        lines,
+        i,
+        isCompleteExportStatement,
+      );
+      result.push("// metonym: export removed");
+      for (let k = 1; k < consumed; k++) {
+        result.push("// metonym: import continued");
+      }
+      i += consumed;
+      continue;
+    }
+
+    if (EXPORT_DECL_KEYWORDS.test(trimmed)) {
+      result.push(transformExportDeclLine(lines[i]));
+      i++;
+      continue;
+    }
+
+    if (/^export\s+default\b/.test(trimmed)) {
+      result.push(transformExportDefaultLine(lines[i]));
+      i++;
       continue;
     }
 

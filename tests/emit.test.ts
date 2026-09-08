@@ -1085,3 +1085,86 @@ test("import attributes (with clause) are forwarded to the dynamic import", () =
     new Bun.Transpiler({ loader: "ts" }).transformSync(generated.code),
   ).not.toThrow();
 });
+
+function makeExample(code: string): Example {
+  return {
+    id: "ex:test.md:1",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 1, column: 1, offset: 0 },
+      end: { line: 2, column: 1, offset: code.length },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 1, column: 1, offset: 0 },
+      end: { line: 2, column: 1, offset: code.length },
+    },
+    language: "ts",
+    code,
+    kind: "assertion",
+    title: "test",
+  };
+}
+
+function generateFromCode(code: string): string {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+  const docSet = createDocSet([doc], [makeExample(code)]);
+  const [generated] = generate(docSet);
+  return generated.code;
+}
+
+test("leading shebang is removed", () => {
+  const code = generateFromCode("#!/usr/bin/env bun\nexpect(1).toBe(1);");
+  expect(code).toContain("// metonym: shebang removed");
+  expect(code).not.toContain("#!/usr/bin/env bun");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
+
+test("top-level export const/function/class drops the export keyword", () => {
+  const code = generateFromCode(
+    "export const x = 1;\nexport function f() {}\nexport class C {}\nexpect(x).toBe(1);",
+  );
+  expect(code).toContain("const x = 1;");
+  expect(code).toContain("function f() {}");
+  expect(code).toContain("class C {}");
+  expect(code).not.toContain("export ");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
+
+test("export default expression becomes a const binding", () => {
+  const code = generateFromCode("export default { a: 1 };");
+  expect(code).toContain("const __default = { a: 1 };");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
+
+test("export default with no expression is removed", () => {
+  const code = generateFromCode("export default;");
+  expect(code).toContain("// metonym: export default removed");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
+
+test("export { ... } and export ... from are commented out", () => {
+  const code = generateFromCode(
+    'export { a, b };\nexport * from "m";\nexport {\n  c,\n  d\n} from "n";\nexpect(1).toBe(1);',
+  );
+  expect(code).not.toContain("export {");
+  expect(code).not.toContain("export *");
+  expect(code).toContain("// metonym: export removed");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
