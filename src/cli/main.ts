@@ -155,6 +155,7 @@ Flags:
   --analysis=auto|shallow|deep        symbol analysis depth (deep needs typescript)
   --full                              bypass caches, run everything
   --changed[=<ref>]                   check only examples affected by git changes
+  --since=<ref>                       impact: diff base ref, default merge-base with origin
   --watch                             re-run on file changes (check only)
   --run                               build: execute examples to annotate statuses
   --no-config                         ignore metonym.config.ts (package.json#metonym still applies)

@@ -392,6 +392,70 @@ describe("extraction warnings", () => {
   });
 });
 
+describe("git subdirectory project", () => {
+  test("check --changed=HEAD --analysis=shallow selects the one example from a monorepo subpackage", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "metonym-subpkg-"));
+    try {
+      const git = (args: string[]) =>
+        Bun.spawnSync(["git", ...args], { cwd: repoRoot });
+      git(["init", "-q", "-b", "main"]);
+      git(["config", "user.email", "a@b.com"]);
+      git(["config", "user.name", "a"]);
+
+      const pkgRoot = join(repoRoot, "packages/foo");
+      await Bun.write(
+        join(pkgRoot, "package.json"),
+        JSON.stringify({ name: "foo-pkg", exports: { ".": "./src/index.ts" } }),
+      );
+      await Bun.write(
+        join(pkgRoot, "src/index.ts"),
+        [
+          "export function add(a: number, b: number): number {",
+          "  return a + b;",
+          "}",
+          "",
+        ].join("\n"),
+      );
+      await Bun.write(
+        join(pkgRoot, "README.md"),
+        [
+          "# foo-pkg",
+          "",
+          "```ts",
+          'import { add } from "foo-pkg"',
+          "expect(add(2, 3)).toBe(5)",
+          "```",
+          "",
+        ].join("\n"),
+      );
+
+      git(["add", "-A"]);
+      git(["commit", "-qm", "init"]);
+
+      // Edit the source file after the commit — this is what --changed=HEAD
+      // should pick up, re-anchored to `pkgRoot`, not the repo top-level.
+      await Bun.write(
+        join(pkgRoot, "src/index.ts"),
+        [
+          "export function add(a: number, b: number): number {",
+          "  return a + b; // touched",
+          "}",
+          "",
+        ].join("\n"),
+      );
+
+      const { exitCode, stderr } = runCli(
+        ["check", "--changed=HEAD", "--analysis=shallow"],
+        pkgRoot,
+      );
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain("1/1 examples selected");
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("dogfooding", () => {
   test("metonym's own README passes metonym check", () => {
     const { exitCode, stderr } = runCli(["check"]);
