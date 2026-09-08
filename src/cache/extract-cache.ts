@@ -24,6 +24,7 @@ import {
   mapPool,
 } from "../extract.ts";
 import type { DocumentationSet, Project } from "../ir/types.ts";
+import { writeAtomic } from "./fs.ts";
 import { configKey, contentKey, versionKey } from "./keys.ts";
 
 const INDEX_FILE = "index.json";
@@ -189,9 +190,7 @@ async function writeIndex(
   const index: IndexFile = { version: 2, scope, entries: ordered };
 
   await fs.mkdir(cacheDir, { recursive: true });
-  const tempPath = `${indexPath}.tmp`;
-  await fs.writeFile(tempPath, JSON.stringify(index), "utf-8");
-  await fs.rename(tempPath, indexPath);
+  await writeAtomic(indexPath, JSON.stringify(index));
 }
 
 /**
