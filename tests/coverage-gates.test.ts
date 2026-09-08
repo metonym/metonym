@@ -132,6 +132,108 @@ test("coverage(): symbols without declKind are counted normally", () => {
   expect(report.reexports).toBe(0);
 });
 
+test("coverage(): a README example that imports and calls a symbol documents, gives it examples, and exercises it", () => {
+  const docs: DocumentationSet = {
+    irVersion: 1,
+    tool: { name: "metonym", version: "0.1.0" },
+    root: "/tmp/test",
+    documents: [],
+    examples: [
+      {
+        id: "ex:README.md:1",
+        documentId: "doc:README.md",
+        source: {
+          file: "README.md",
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        fenceSource: {
+          file: "README.md",
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        language: "ts",
+        code: 'import { add } from "pkg"\nexpect(add(2, 3)).toBe(5)',
+        kind: "assertion",
+        title: "example 1",
+      },
+    ],
+    symbols: [
+      {
+        id: "sym:src/index.ts:add",
+        file: "src/index.ts",
+        name: "add",
+        imports: [],
+        declKind: "function",
+      },
+    ],
+    relations: [
+      {
+        kind: "references",
+        from: "ex:README.md:1",
+        to: "sym:src/index.ts:add",
+      },
+    ],
+  };
+
+  const report = coverage(docs);
+  expect(report.symbols.documented).toBe(1);
+  expect(report.symbols.withExamples).toBe(1);
+  expect(report.symbols.exercised).toBe(1);
+  expect(report.exercised).toEqual(["sym:src/index.ts:add"]);
+});
+
+test("coverage(): a pending example referencing a symbol documents it but doesn't count toward withExamples/exercised", () => {
+  const docs: DocumentationSet = {
+    irVersion: 1,
+    tool: { name: "metonym", version: "0.1.0" },
+    root: "/tmp/test",
+    documents: [],
+    examples: [
+      {
+        id: "ex:README.md:1",
+        documentId: "doc:README.md",
+        source: {
+          file: "README.md",
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        fenceSource: {
+          file: "README.md",
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        language: "ts",
+        code: 'import { multiply } from "pkg"',
+        kind: "pending",
+        title: "example 1",
+      },
+    ],
+    symbols: [
+      {
+        id: "sym:src/index.ts:multiply",
+        file: "src/index.ts",
+        name: "multiply",
+        imports: [],
+        declKind: "function",
+      },
+    ],
+    relations: [
+      {
+        kind: "references",
+        from: "ex:README.md:1",
+        to: "sym:src/index.ts:multiply",
+      },
+    ],
+  };
+
+  const report = coverage(docs);
+  expect(report.symbols.documented).toBe(1);
+  expect(report.symbols.withExamples).toBe(0);
+  expect(report.symbols.exercised).toBe(0);
+  expect(report.exercised).toEqual([]);
+});
+
 test("checkCoverage(): pass when all gates satisfied", () => {
   const docs: DocumentationSet = {
     irVersion: 1,

@@ -6,12 +6,14 @@ import type {
 } from "../ir/types";
 import { getTranspiler, loaderFromPath } from "../parse/transpiler";
 import { resolveInternal } from "./paths";
+import { ensureReferences } from "./references";
 
 export interface CoverageReport {
   symbols: {
     total: number;
     documented: number;
     withExamples: number;
+    exercised: number;
   };
   documents: {
     total: number;
@@ -32,6 +34,8 @@ export interface CoverageReport {
     errorCount: number;
   }[];
   reexports: number;
+  /** Sorted symbol ids referenced by an executable example; re-exports excluded. */
+  exercised: string[];
 }
 
 /**
@@ -49,6 +53,27 @@ export function coverage(docs: DocumentationSet): CoverageReport {
     if (rel.kind === "owns") {
       symbolsWithExamples.add(rel.from);
     }
+  }
+
+  const exampleById = new Map(docs.examples.map((ex) => [ex.id, ex]));
+  const isExecutable = (ex: Example | undefined): boolean =>
+    ex?.kind === "assertion" || ex?.kind === "throws";
+
+  // Symbols referenced by an executable example ("exercised") vs. by any
+  // example regardless of kind (a `pending` example still documents intent).
+  const referenced = new Map<string, Set<string>>();
+  const referencedByAny = new Set<string>();
+
+  for (const rel of ensureReferences(docs)) {
+    referencedByAny.add(rel.to);
+    if (!isExecutable(exampleById.get(rel.from))) continue;
+
+    let exampleIds = referenced.get(rel.to);
+    if (!exampleIds) {
+      exampleIds = new Set();
+      referenced.set(rel.to, exampleIds);
+    }
+    exampleIds.add(rel.from);
   }
 
   const docsWithExamples = docs.documents.filter(
@@ -79,6 +104,7 @@ export function coverage(docs: DocumentationSet): CoverageReport {
 
   const undocumented: SymbolInfo[] = [];
   const documentedWithoutExamples: SymbolInfo[] = [];
+  const exercised: string[] = [];
   let reexportCount = 0;
   let countedTotal = 0;
   let countedDocumented = 0;
@@ -92,11 +118,18 @@ export function coverage(docs: DocumentationSet): CoverageReport {
 
     countedTotal++;
 
+    const isExercised = referenced.has(sym.id);
+
     // "documents" relations are only created alongside "owns" (both gated
     // on the same owned-example check), so a symbol's own JSDoc prose is
     // what actually makes it "documented" independent of having an example.
-    const isDocumented = documentedSymbols.has(sym.id) || !!sym.description;
-    const hasExamples = symbolsWithExamples.has(sym.id);
+    // A README that imports and calls the symbol documents it too, even via
+    // a `pending` example.
+    const isDocumented =
+      documentedSymbols.has(sym.id) ||
+      !!sym.description ||
+      referencedByAny.has(sym.id);
+    const hasExamples = symbolsWithExamples.has(sym.id) || isExercised;
 
     if (isDocumented) {
       countedDocumented++;
@@ -109,6 +142,10 @@ export function coverage(docs: DocumentationSet): CoverageReport {
     } else if (isDocumented) {
       documentedWithoutExamples.push(sym);
     }
+
+    if (isExercised) {
+      exercised.push(sym.id);
+    }
   }
 
   const sortByFileAndName = (a: SymbolInfo, b: SymbolInfo) =>
@@ -116,13 +153,16 @@ export function coverage(docs: DocumentationSet): CoverageReport {
 
   undocumented.sort(sortByFileAndName);
   documentedWithoutExamples.sort(sortByFileAndName);
+  exercised.sort();
 
   return {
     symbols: {
       total: countedTotal,
       documented: countedDocumented,
       withExamples: countedWithExamples,
+      exercised: exercised.length,
     },
+    exercised,
     documents: {
       total: docs.documents.length,
       withExamples: docsWithExamples,
