@@ -156,6 +156,18 @@ describe("e2e fixture project", () => {
     expect(stdout).toContain("::error file=");
   });
 
+  test("--reporter=junit writes JUnit XML to stdout", () => {
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      "--reporter=junit",
+    ]);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain("<?xml");
+    expect(stdout).toContain('<testsuite name="README.md"');
+    expect(stdout).toContain('name="Broken claim › example 1"');
+  });
+
   test("check --filter narrows to matching examples and exits 0", () => {
     const { exitCode, stderr } = runCli([
       "check",
