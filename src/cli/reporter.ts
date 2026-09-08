@@ -55,6 +55,7 @@ export async function reportPretty(
     const doc = r.failure.doc;
     if (doc) {
       out.push(`  ${c.bold(`${doc.file}:${doc.line}`)}`);
+      out.push(`  ${c.dim(`id: ${r.exampleId}`)}`);
       out.push(`  ${r.title}`);
       out.push("");
       out.push(...(await excerpt(root, doc.file, doc.line, doc.column)));

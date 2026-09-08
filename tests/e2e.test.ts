@@ -98,6 +98,7 @@ describe("e2e fixture project", () => {
     // The failing expect is body line 3 of a block whose body starts at
     // README.md:13 → remapped doc line 15.
     expect(stderr).toContain("README.md:15");
+    expect(stderr).toContain("id: ex:README.md:");
     expect(stderr).toContain("Expected: 6");
     expect(stderr).toContain("Received: 5");
     expect(stderr).toContain("✓ add › example 1"); // JSDoc example
