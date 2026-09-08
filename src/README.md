@@ -57,7 +57,7 @@ default. Attributes on the fence line opt out or change semantics:
 
 | Attribute | Meaning |
 | --- | --- |
-| *(none)* | Runs as a test; `expect` is auto-imported if not imported |
+| *(none)* | Runs as a test; `expect` is auto-imported if not imported, unless `inject: false` |
 | `no-run` | Transpile-checked at generation time, never executed |
 | `throws` | Passes only if the body throws |
 | `pending` | Documented-but-unimplemented API; reported, never fails CI |

@@ -48,18 +48,24 @@ export async function runCached(
   opts?: {
     outDir?: string;
     full?: boolean;
-    /** Forwarded to generate() for the uncached subset (e.g. jsxImportSource). */
-    emit?: { jsxImportSource?: string };
+    /** Forwarded to generate() for the uncached subset (e.g. jsxImportSource, inject). */
+    emit?: { jsxImportSource?: string; inject?: boolean };
   },
 ): Promise<RunResult> {
   const root = docs.root;
   const resultsCachePath = `${root}/.metonym/cache/results.json`;
   const outDir = opts?.outDir ?? `${root}/.metonym/tests`;
   const fullRun = opts?.full ?? false;
-  // jsxImportSource isn't part of configKey, and it changes what tsx/jsx
-  // examples emit, so fold it in here alongside the shared version key.
-  const jsxKey = contentKey(JSON.stringify(opts?.emit?.jsxImportSource ?? ""));
-  const vKey = `${await versionKey(root)}:${jsxKey}`;
+  // jsxImportSource and inject both change what a generated test file
+  // contains (and thus what actually runs), so fold them into the shared
+  // version key alongside the config-independent parts of `emit`.
+  const emitKey = contentKey(
+    JSON.stringify({
+      jsxImportSource: opts?.emit?.jsxImportSource ?? "",
+      inject: opts?.emit?.inject ?? true,
+    }),
+  );
+  const vKey = `${await versionKey(root)}:${emitKey}`;
 
   // Load results cache (tolerate absence/corruption)
   let resultsCache: ResultsFile = { version: 1, entries: {} };
