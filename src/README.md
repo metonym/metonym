@@ -371,7 +371,7 @@ paths, not glob patterns).
 | --- | --- |
 | `--filter=<substring>` | Only run examples whose title contains the substring |
 | `--reporter=pretty\|json` | Output format; default `pretty` |
-| `--changed[=<ref>]` | Only examples affected by git changes since `<ref>` (default: working tree vs `HEAD`), traced through each example's import closure. Falls back to running everything when the trace is ambiguous. |
+| `--changed[=<ref>]` | Only examples affected by git changes since `<ref>` (default: working tree vs `HEAD`), traced through each example's import closure. `<ref>` is compared from its merge-base with `HEAD` (three-dot semantics). Falls back to running everything when the trace is ambiguous. |
 | `--watch` | Re-run on file changes; runs until interrupted |
 | `--full` | Bypass the result cache, execute every example |
 
@@ -436,7 +436,8 @@ JSON instead of the text summary.
 Traces which examples a change affects: changed file, import chain,
 examples, doc files. `[files…]` are the changed files; when omitted, they
 come from `git` (uncommitted + `--since=<ref>` if given — if the working
-tree isn't a git repo, this errors and expects explicit paths).
+tree isn't a git repo, this errors and expects explicit paths). `<ref>` is
+compared from its merge-base with `HEAD` (three-dot semantics).
 
 `--format=text\|json\|mermaid\|dot`, default `text`. With deep analysis,
 affected examples that currently fail to type-check are marked inline

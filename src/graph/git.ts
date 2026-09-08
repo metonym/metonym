@@ -56,9 +56,14 @@ function mapGitPaths(
  *
  * Strategy:
  * 1. Check if inside a git work tree
- * 2. Find base ref: since ?? merge-base origin/HEAD ?? origin/master ?? origin/main
+ * 2. Find base ref: merge-base(HEAD, since) ?? since ?? merge-base(HEAD, origin/HEAD|origin/master|origin/main)
  * 3. Collect: git diff --name-only [base], git diff --cached, git ls-files untracked
  * 4. Union and sort, all re-anchored to `root`
+ *
+ * `since` is always compared via its merge-base with HEAD (three-dot
+ * semantics), matching the automatic path, so an explicit ref doesn't pull
+ * in unrelated upstream commits. Falls back to the raw ref if no merge-base
+ * exists (e.g. unrelated histories).
  */
 export function changedFiles(root: string, since?: string): GitDiff {
   if (since?.startsWith("-")) {
@@ -74,10 +79,19 @@ export function changedFiles(root: string, since?: string): GitDiff {
   const topLevel =
     topLevelResult.exitCode === 0 ? topLevelResult.stdout.trim() : root;
 
-  let base: string | undefined = since;
-  let baseResolved = base !== undefined;
+  let base: string | undefined;
+  let baseResolved = false;
 
-  if (!base) {
+  if (since !== undefined) {
+    const mergeBaseResult = run(
+      ["merge-base", "HEAD", "--end-of-options", since],
+      root,
+    );
+    const found =
+      mergeBaseResult.exitCode === 0 ? mergeBaseResult.stdout.trim() : "";
+    base = found || since;
+    baseResolved = true;
+  } else {
     for (const candidate of ["origin/HEAD", "origin/master", "origin/main"]) {
       const mergeBaseResult = run(["merge-base", "HEAD", candidate], root);
       if (mergeBaseResult.exitCode === 0) {
