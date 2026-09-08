@@ -252,11 +252,19 @@ describe("e2e fixture project", () => {
     expect(exitCode).toBe(0);
     const parsed = JSON.parse(stdout);
     expect(parsed.tool).toEqual({ name: "metonym", version: "0.1.0" });
+    expect(parsed.schema).toBe("list@1");
     expect(parsed.examples.length).toBe(4);
     expect(parsed.examples[0]).toMatchObject({
       docFile: "README.md",
       title: expect.stringContaining("Quick start"),
     });
+  });
+
+  test("check --reporter=json stamps tool and schema", () => {
+    const { stdout } = runCli(["check", `--root=${root}`, "--reporter=json"]);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.tool).toEqual({ name: "metonym", version: "0.1.0" });
+    expect(parsed.schema).toBe("run@1");
   });
 
   test("extract --format=json emits the IR without executing", () => {
@@ -348,6 +356,10 @@ describe("e2e fixture project", () => {
     expect(absolute.exitCode).toBe(0);
     expect(JSON.parse(dotRelative.stdout)).toEqual(JSON.parse(bare.stdout));
     expect(JSON.parse(absolute.stdout)).toEqual(JSON.parse(bare.stdout));
+
+    const parsed = JSON.parse(bare.stdout);
+    expect(parsed.tool).toEqual({ name: "metonym", version: "0.1.0" });
+    expect(parsed.schema).toBe("impact@1");
   });
 
   test("build --run --out-dir doesn't let generated-test pruning delete its own rendered output", async () => {
@@ -683,6 +695,8 @@ describe("coverage command", () => {
     ]);
     expect(exitCode).toBe(1);
     const result = JSON.parse(stdout);
+    expect(result.tool).toEqual({ name: "metonym", version: "0.1.0" });
+    expect(result.schema).toBe("coverage@1");
     expect(result.gates).toBeDefined();
     expect(result.gates.pass).toBe(false);
     expect(result.gates.failures.length).toBeGreaterThanOrEqual(1);
