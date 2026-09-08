@@ -28,9 +28,11 @@ export function defineConfig(
  * 5. root field (always set to the root parameter)
  *
  * Arrays replace entirely (no concat). Validates that include/exclude/languages
- * are arrays if present; throws clear Error on validation failure. A missing
- * config file is fine; a broken one is not — syntax and runtime errors while
- * loading `metonym.config.ts`/`.js` propagate instead of being swallowed.
+ * are arrays if present; throws clear Error on validation failure. Unknown
+ * keys in any source (including `coverage`) throw rather than being silently
+ * dropped. A missing config file is fine; a broken one is not — syntax and
+ * runtime errors while loading `metonym.config.ts`/`.js` propagate instead of
+ * being swallowed.
  */
 export async function loadConfig(
   root: string,
@@ -66,10 +68,12 @@ export async function loadConfig(
       : undefined;
 
   let configFromFile: unknown;
+  let configFileName = "metonym.config.ts";
   if (configPath) {
     const configName = configPath.endsWith(".js")
       ? "metonym.config.js"
       : "metonym.config.ts";
+    configFileName = configName;
     try {
       const mod = (await import(`file://${configPath}`)) as {
         default?: unknown;
@@ -94,7 +98,11 @@ export async function loadConfig(
         `Invalid metonym config: "package.json#metonym" must be an object, got ${typeof metonymField}`,
       );
     }
-    mergeConfig(config, metonymField as Partial<MetonymConfig>);
+    mergeConfig(
+      config,
+      metonymField as Partial<MetonymConfig>,
+      "package.json#metonym",
+    );
   }
 
   if (configFromFile !== undefined) {
@@ -103,11 +111,15 @@ export async function loadConfig(
         `Invalid metonym config: metonym.config default export must be an object, got ${typeof configFromFile}`,
       );
     }
-    mergeConfig(config, configFromFile as Partial<MetonymConfig>);
+    mergeConfig(
+      config,
+      configFromFile as Partial<MetonymConfig>,
+      configFileName,
+    );
   }
 
   if (overrides) {
-    mergeConfig(config, overrides);
+    mergeConfig(config, overrides, "overrides");
   }
 
   validateConfig(config);
@@ -131,6 +143,106 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+const KNOWN_CONFIG_KEYS = [
+  "include",
+  "exclude",
+  "outDir",
+  "languages",
+  "inject",
+  "jsxImportSource",
+  "analysis",
+  "coverage",
+  "root",
+] as const;
+
+// `minExercised` isn't implemented here yet (a sibling PR adds it); listing
+// it as known keeps this PR from rejecting it as a typo once that PR lands.
+const KNOWN_COVERAGE_KEYS = [
+  "minDocumented",
+  "minExamples",
+  "failOnUndocumented",
+  "failOnTypeErrors",
+  "minExercised",
+] as const;
+
+/** Case-insensitive exact match, else nearest by edit distance (threshold 2). */
+function suggestKey(
+  key: string,
+  knownKeys: readonly string[],
+): string | undefined {
+  const lower = key.toLowerCase();
+  const caseMatch = knownKeys.find((k) => k.toLowerCase() === lower);
+  if (caseMatch) return caseMatch;
+
+  let best: { key: string; dist: number } | undefined;
+  for (const known of knownKeys) {
+    const dist = levenshtein(lower, known.toLowerCase());
+    if (dist <= 2 && (!best || dist < best.dist)) {
+      best = { key: known, dist };
+    }
+  }
+  return best?.key;
+}
+
+function levenshtein(a: string, b: string): number {
+  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) => {
+    const row = new Array<number>(b.length + 1).fill(0);
+    row[0] = i;
+    return row;
+  });
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function checkUnknownKeys(
+  obj: Record<string, unknown>,
+  knownKeys: readonly string[],
+  keyPrefix: string,
+  source: string,
+): void {
+  for (const key of Object.keys(obj)) {
+    if (!knownKeys.includes(key)) {
+      const fullKey = keyPrefix ? `${keyPrefix}.${key}` : key;
+      const suggestion = suggestKey(key, knownKeys);
+      const hint = suggestion
+        ? ` (did you mean "${keyPrefix ? `${keyPrefix}.` : ""}${suggestion}"?)`
+        : "";
+      throw new Error(
+        `Invalid metonym config: unknown key "${fullKey}" in ${source}${hint}`,
+      );
+    }
+  }
+}
+
+function validateSourceKeys(
+  source: Record<string, unknown>,
+  sourceLabel: string,
+): void {
+  checkUnknownKeys(source, KNOWN_CONFIG_KEYS, "", sourceLabel);
+
+  if (
+    source.coverage !== undefined &&
+    typeof source.coverage === "object" &&
+    source.coverage !== null
+  ) {
+    checkUnknownKeys(
+      source.coverage as Record<string, unknown>,
+      KNOWN_COVERAGE_KEYS,
+      "coverage",
+      sourceLabel,
+    );
+  }
+}
+
 /**
  * Merge a source config object into the target config.
  * Arrays replace entirely (no concat).
@@ -138,24 +250,13 @@ function errorMessage(err: unknown): string {
 function mergeConfig(
   target: Partial<MetonymConfig>,
   source: Partial<MetonymConfig>,
+  sourceLabel: string,
 ): void {
-  for (const key of Object.keys(source) as Array<
-    keyof Partial<MetonymConfig>
-  >) {
-    if (
-      key === "include" ||
-      key === "exclude" ||
-      key === "outDir" ||
-      key === "languages" ||
-      key === "inject" ||
-      key === "jsxImportSource" ||
-      key === "analysis" ||
-      key === "coverage" ||
-      key === "root"
-    ) {
-      if (source[key] !== undefined) {
-        Object.assign(target, { [key]: source[key] });
-      }
+  validateSourceKeys(source as Record<string, unknown>, sourceLabel);
+
+  for (const key of KNOWN_CONFIG_KEYS) {
+    if (source[key] !== undefined) {
+      Object.assign(target, { [key]: source[key] });
     }
   }
 }
