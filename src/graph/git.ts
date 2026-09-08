@@ -50,6 +50,22 @@ function mapGitPaths(
 }
 
 /**
+ * Parse `git diff --name-status` output into a flat list of paths. Most
+ * statuses (`A`, `M`, `D`, …) carry one path; renames/copies (`R100`,
+ * `C75`) carry two (old, new) — both are kept so an example whose import
+ * closure referenced the old path is still recognized as affected.
+ */
+function parseNameStatus(text: string): string[] {
+  const paths: string[] = [];
+  for (const line of text.split("\n")) {
+    if (!line) continue;
+    const fields = line.split("\t");
+    for (let i = 1; i < fields.length; i++) paths.push(fields[i]);
+  }
+  return paths;
+}
+
+/**
  * Git repository top-level (absolute path) for `root`, or `undefined` when
  * `root` isn't inside a git work tree. Cheap: two `rev-parse` calls, no
  * diffing.
@@ -117,24 +133,24 @@ export function changedFiles(root: string, since?: string): GitDiff {
 
   const diffRef = base ?? "HEAD";
   const diffResult = run(
-    ["diff", "--name-only", "--end-of-options", diffRef],
+    ["diff", "--name-status", "-M", "--end-of-options", diffRef],
     root,
   );
   if (diffResult.exitCode === 0) {
     for (const p of mapGitPaths(
       root,
       topLevel,
-      diffResult.stdout.trim().split("\n"),
+      parseNameStatus(diffResult.stdout),
     ))
       changes.add(p);
   }
 
-  const cachedResult = run(["diff", "--name-only", "--cached"], root);
+  const cachedResult = run(["diff", "--name-status", "-M", "--cached"], root);
   if (cachedResult.exitCode === 0) {
     for (const p of mapGitPaths(
       root,
       topLevel,
-      cachedResult.stdout.trim().split("\n"),
+      parseNameStatus(cachedResult.stdout),
     ))
       changes.add(p);
   }
