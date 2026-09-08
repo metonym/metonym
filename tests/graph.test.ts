@@ -241,14 +241,21 @@ test("git.changedFiles(): modify README.md → appears in changes", async () => 
   await Bun.write(join(tmpDir, "README.md"), originalContent);
 });
 
-test("selectAffected(): clean tree → mode affected, 0 examples, note 'no changes detected'", async () => {
+test("selectAffected(): clean tree, no resolvable base → mode 'all' (ambiguous, not 'no changes')", async () => {
   Bun.spawnSync(["git", "checkout", "-q", "README.md"], { cwd: tmpDir });
 
   const selection = await selectAffected(docs);
 
+  expect(selection.mode).toBe("all");
+  expect(selection.note).toContain("could not determine a git base ref");
+});
+
+test("selectAffected(): clean tree with a resolvable base → mode affected, 0 examples, explicit note", async () => {
+  const selection = await selectAffected(docs, { since: "HEAD" });
+
   expect(selection.mode).toBe("affected");
   expect(selection.docs.examples.length).toBe(0);
-  expect(selection.note).toContain("no changes detected");
+  expect(selection.note).toContain("no changes since");
 });
 
 test("selectAffected(): modify src/util.ts → selection contains 2 README examples", async () => {
