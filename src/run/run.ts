@@ -18,7 +18,7 @@ import { parseExpectedReceived, parseJUnit, parseStackFrames } from "./junit";
 
 export async function run(
   docs: DocumentationSet,
-  opts?: { generated?: GeneratedTest[]; outDir?: string },
+  opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string },
 ): Promise<RunResult> {
   const outDir = opts?.outDir ?? `${docs.root}/.metonym/tests`;
   const generated = opts?.generated ?? [];
@@ -26,23 +26,56 @@ export async function run(
   await syncGeneratedFiles(outDir, generated);
 
   const junitPath = `${outDir}/.junit.xml`;
-  const proc = Bun.spawn(
-    [
-      "bun",
-      "test",
-      outDir,
-      "--reporter=junit",
-      `--reporter-outfile=${junitPath}`,
-    ],
-    {
-      cwd: docs.root,
-      stdout: "pipe",
-      stderr: "pipe",
-    },
-  );
+  const bunPath = opts?.bunPath ?? process.execPath;
 
-  const exitCode = await proc.exited;
-  const stderrText = await new Response(proc.stderr).text();
+  let exitCode: number;
+  let stderrText: string;
+  try {
+    const proc = Bun.spawn(
+      [
+        bunPath,
+        "test",
+        outDir,
+        "--reporter=junit",
+        `--reporter-outfile=${junitPath}`,
+      ],
+      {
+        cwd: docs.root,
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+
+    exitCode = await proc.exited;
+    stderrText = await new Response(proc.stderr).text();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const allEntries: (SidecarEntry & { path: string })[] = [];
+    for (const gt of generated) {
+      for (const e of gt.map.entries) allEntries.push({ ...e, path: gt.path });
+    }
+    return {
+      results: allEntries.map((entry) => ({
+        exampleId: entry.exampleId,
+        title: entry.title,
+        docFile: entry.docFile,
+        status: "skipped",
+        durationMs: 0,
+      })),
+      totals: {
+        total: allEntries.length,
+        passed: 0,
+        failed: 0,
+        pending: 0,
+        skipped: allEntries.length,
+        durationMs: 0,
+      },
+      outDir,
+      exitCode: 1,
+      junitMissing: true,
+      stderr: message,
+    };
+  }
 
   let junitText = "";
   let junitMissing = false;

@@ -443,6 +443,63 @@ describe("README.md", () => {
     }
   });
 
+  test("resolves instead of throwing when bunPath can't be spawned", async () => {
+    const tmpRoot = `/tmp/metonym-spawn-fail-${Date.now()}`;
+    await mkdir(tmpRoot, { recursive: true });
+
+    try {
+      const sidecar: SidecarMap = {
+        version: 1,
+        source: "README.md",
+        testFile: "README.md.test.ts",
+        entries: [
+          {
+            exampleId: "ex:README.md:spawn01",
+            title: "Demo › example 1",
+            kind: "assertion",
+            docFile: "README.md",
+            docCodeStartLine: 10,
+            genCodeStartLine: 1,
+            genCodeEndLine: 1,
+          },
+        ],
+      };
+
+      const generated: GeneratedTest[] = [
+        {
+          path: "README.md.test.ts",
+          code: `import { test, expect } from "bun:test"; test("x", () => { expect(1).toBe(1); })`,
+          map: sidecar,
+        },
+      ];
+
+      const docs: DocumentationSet = {
+        irVersion: 1,
+        tool: { name: "metonym", version: "0.1.0" },
+        root: tmpRoot,
+        documents: [],
+        examples: [],
+        symbols: [],
+        relations: [],
+      };
+
+      const result = await run(docs, {
+        generated,
+        outDir: `${tmpRoot}/.metonym/tests`,
+        bunPath: "/definitely/not/bun",
+      });
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.junitMissing).toBe(true);
+      expect(result.stderr).toBeDefined();
+      for (const r of result.results) {
+        expect(r.status).toBe("skipped");
+      }
+    } finally {
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   test("handles missing generated file gracefully", async () => {
     const tmpRoot = `/tmp/metonym-empty-${Date.now()}`;
     await mkdir(tmpRoot, { recursive: true });
