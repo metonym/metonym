@@ -590,4 +590,29 @@ describe("cache", () => {
       }
     });
   });
+
+  describe("writeAtomic", () => {
+    it("concurrent writes to the same path leave valid JSON and no .tmp files", async () => {
+      const root = await createFixture("write-atomic-concurrent");
+      try {
+        const { writeAtomic } = await import("../src/cache/fs");
+        const targetPath = `${root}/target.json`;
+
+        await Promise.all(
+          Array.from({ length: 5 }, (_, i) =>
+            writeAtomic(targetPath, JSON.stringify({ writer: i })),
+          ),
+        );
+
+        const finalContent = await fs.readFile(targetPath, "utf-8");
+        expect(() => JSON.parse(finalContent)).not.toThrow();
+
+        const entries = await fs.readdir(root);
+        const tmpFiles = entries.filter((e) => e.endsWith(".tmp"));
+        expect(tmpFiles.length).toBe(0);
+      } finally {
+        await cleanupFixture(root);
+      }
+    });
+  });
 });

@@ -19,6 +19,7 @@ import type {
   ExampleResult,
   RunResult,
 } from "../ir/types.ts";
+import { writeAtomic } from "./fs.ts";
 import {
   type ClosureFileCache,
   closureKey,
@@ -219,16 +220,13 @@ export async function runCached(
   if (cacheDirty) {
     const resultsCacheDir = `${root}/.metonym/cache`;
     await fs.mkdir(resultsCacheDir, { recursive: true });
-    const tempPath = `${resultsCachePath}.tmp`;
-    await fs.writeFile(
-      tempPath,
+    await writeAtomic(
+      resultsCachePath,
       JSON.stringify({
         version: 1,
         entries: updatedEntries,
       } satisfies ResultsFile),
-      "utf-8",
     );
-    await fs.rename(tempPath, resultsCachePath);
   }
 
   return {

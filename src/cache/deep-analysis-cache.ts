@@ -14,6 +14,7 @@
 import * as fs from "node:fs/promises";
 import { dirname } from "node:path";
 import type { DocumentationSet } from "../ir/types.ts";
+import { writeAtomic } from "./fs.ts";
 import { contentKey, versionKey } from "./keys.ts";
 
 /**
@@ -175,9 +176,7 @@ export async function enrichWithTypeScriptCached(
   };
 
   await fs.mkdir(cacheDir, { recursive: true });
-  const tempPath = `${cachePath}.tmp`;
-  await fs.writeFile(tempPath, JSON.stringify(entry), "utf-8");
-  await fs.rename(tempPath, cachePath);
+  await writeAtomic(cachePath, JSON.stringify(entry));
   await evictStale(cacheDir, key);
 
   return { docs: entry.docs, diagnostics: entry.diagnostics };
