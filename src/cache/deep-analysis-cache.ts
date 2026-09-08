@@ -12,10 +12,42 @@
  * corrupt entry just falls through and recomputes.
  */
 import * as fs from "node:fs/promises";
+import { dirname } from "node:path";
 import type { DocumentationSet } from "../ir/types.ts";
 import { contentKey, versionKey } from "./keys.ts";
 
-async function deepAnalysisKey(
+/**
+ * Read the version of the `typescript` package `tsPath` was loaded from,
+ * without loading the compiler itself: walk up from `tsPath` looking for
+ * the nearest `package.json` that identifies it as the `typescript`
+ * package (by `name` or by directory name, since vendored/aliased
+ * compilers like `@typescript/typescript6` don't use the `typescript`
+ * package name). Falls back to `tsPath` (the caller's key material) when
+ * no such `package.json` is found.
+ */
+async function resolveTsPackageVersion(tsPath: string): Promise<string | null> {
+  let dir = dirname(tsPath);
+  for (let i = 0; i < 8; i++) {
+    try {
+      const text = await Bun.file(`${dir}/package.json`).text();
+      const pkg = JSON.parse(text) as { name?: string; version?: string };
+      if (
+        typeof pkg.version === "string" &&
+        (pkg.name === "typescript" || dir.endsWith("/typescript"))
+      ) {
+        return pkg.version;
+      }
+    } catch {
+      // No package.json here, or unreadable/invalid; keep walking up.
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+export async function deepAnalysisKey(
   docs: DocumentationSet,
   sourceFiles: string[],
   tsPath: string,
@@ -42,11 +74,12 @@ async function deepAnalysisKey(
   const tsconfigText = await Bun.file(`${docs.root}/tsconfig.json`)
     .text()
     .catch(() => "");
+  const tsVersion = (await resolveTsPackageVersion(tsPath)) ?? tsPath;
 
   return contentKey(
     [
       versionKey(),
-      tsPath,
+      `typescript@${tsVersion}`,
       contentKey(tsconfigText),
       fileHashes.sort().join("\n"),
       exampleIds.join("\n"),

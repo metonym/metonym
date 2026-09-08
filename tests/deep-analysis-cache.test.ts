@@ -8,7 +8,10 @@ import {
   extractMarkdown,
   scanSymbols,
 } from "metonym";
-import { enrichWithTypeScriptCached } from "../src/cache/deep-analysis-cache";
+import {
+  deepAnalysisKey,
+  enrichWithTypeScriptCached,
+} from "../src/cache/deep-analysis-cache";
 import { contentKey } from "../src/cache/keys";
 
 const TS_PATH = Bun.resolveSync("typescript", `${import.meta.dir}/..`);
@@ -176,6 +179,30 @@ export function subtract(a: number, b: number): number {
 
     const result = await enrichWithTypeScriptCached(docs, { tsPath: TS_PATH });
     expect(result.docs.symbols.length).toBeGreaterThan(0);
+  });
+
+  test("key changes when the resolved typescript package's version changes", async () => {
+    writeFixture(fixture, "");
+    const docs = await buildDocs(fixture);
+
+    const fakeTsDir = `${fixture}/node_modules/typescript`;
+    mkdirSync(`${fakeTsDir}/lib`, { recursive: true });
+    writeFileSync(`${fakeTsDir}/lib/typescript.js`, "");
+    const fakeTsPath = `${fakeTsDir}/lib/typescript.js`;
+
+    writeFileSync(
+      `${fakeTsDir}/package.json`,
+      JSON.stringify({ name: "typescript", version: "5.0.0" }),
+    );
+    const key1 = await deepAnalysisKey(docs, ["src/index.ts"], fakeTsPath);
+
+    writeFileSync(
+      `${fakeTsDir}/package.json`,
+      JSON.stringify({ name: "typescript", version: "5.1.0" }),
+    );
+    const key2 = await deepAnalysisKey(docs, ["src/index.ts"], fakeTsPath);
+
+    expect(key1).not.toBe(key2);
   });
 
   test("clearing .metonym/cache removes deep-analysis entries too", async () => {
