@@ -366,7 +366,8 @@ paths, not glob patterns).
 | `--full` | Bypass the result cache, execute every example |
 
 Exit codes: `0` all passed, `1` one or more examples failed (or the run
-didn't complete cleanly), `2` a usage error (e.g. unrecognized flag value).
+didn't complete cleanly), `2` a usage error (unknown flag, invalid flag
+value, or path arguments that match no files).
 
 ### extract
 

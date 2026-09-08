@@ -175,6 +175,92 @@ describe("e2e fixture project", () => {
   });
 });
 
+describe("CLI usage errors", () => {
+  let root: string;
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), "metonym-usage-e2e-"));
+    await Bun.write(
+      join(root, "package.json"),
+      JSON.stringify({ name: "demo-pkg" }),
+    );
+    await Bun.write(
+      join(root, "README.md"),
+      ["# demo-pkg", "", "```ts", "expect(1).toBe(1);", "```", ""].join("\n"),
+    );
+  });
+
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  test("unknown long flag exits 2", () => {
+    const { exitCode, stderr } = runCli(["check", `--root=${root}`, "--bogus"]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("unknown flag --bogus");
+  });
+
+  test("unknown short flag exits 2, never treated as a path", () => {
+    const { exitCode, stderr } = runCli(["check", `--root=${root}`, "-f"]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("unknown flag -f");
+  });
+
+  test("invalid --reporter value exits 2", () => {
+    const { exitCode, stderr } = runCli([
+      "check",
+      `--root=${root}`,
+      "--reporter",
+      "bogus",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain("invalid --reporter=bogus");
+  });
+
+  test("--reporter json with a space consumes the next token as its value", () => {
+    const spaced = runCli([
+      "check",
+      `--root=${root}`,
+      "--full",
+      "--reporter",
+      "json",
+    ]);
+    const equals = runCli([
+      "check",
+      `--root=${root}`,
+      "--full",
+      "--reporter=json",
+    ]);
+    expect(spaced.exitCode).toBe(equals.exitCode);
+    // Strip timing, which legitimately varies run to run.
+    const stable = (raw: string) => {
+      const parsed = JSON.parse(raw);
+      for (const r of parsed.results) r.durationMs = 0;
+      parsed.totals.durationMs = 0;
+      return parsed;
+    };
+    expect(stable(spaced.stdout)).toEqual(stable(equals.stdout));
+  });
+
+  test("path arguments matching no files exit 2 with a clear message", () => {
+    const { exitCode, stderr } = runCli([
+      "check",
+      `--root=${root}`,
+      "does/not/exist.md",
+    ]);
+    expect(exitCode).toBe(2);
+    expect(stderr).toContain(
+      "no documentation or source files matched: does/not/exist.md",
+    );
+  });
+
+  test("--help still exits 0", () => {
+    const { exitCode, stdout } = runCli(["--help"]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("metonym");
+  });
+});
+
 describe("group= doc-line remap", () => {
   test("failure in the 2nd+ example of a group remaps to the correct README line", async () => {
     const root = await mkdtemp(join(tmpdir(), "metonym-group-e2e-"));

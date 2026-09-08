@@ -37,23 +37,99 @@ interface Args {
   flags: Map<string, string | true>;
 }
 
+/** Thrown for bad CLI input (unknown flag, invalid value, unmatched paths). Caught once in `main()` → exit 2. */
+class UsageError extends Error {}
+
+// `no-config` is added by a sibling PR; listing it here as known is
+// harmless even before that lands.
+const KNOWN_FLAGS = new Set([
+  "help",
+  "version",
+  "root",
+  "out-dir",
+  "analysis",
+  "full",
+  "format",
+  "filter",
+  "reporter",
+  "changed",
+  "watch",
+  "run",
+  "check",
+  "since",
+  "no-config",
+]);
+
+// `--changed` deliberately excluded: it keeps its optional `=<ref>` form
+// only, since a bare `--changed` is meaningful (all changed examples).
+const VALUE_FLAGS = new Set([
+  "root",
+  "out-dir",
+  "analysis",
+  "format",
+  "filter",
+  "reporter",
+  "since",
+]);
+
 function parseArgs(argv: string[]): Args {
   // A leading flag (e.g. `metonym --help`) means no command was given —
   // don't swallow it as the command positional.
-  const hasCommand = argv.length > 0 && !argv[0].startsWith("--");
+  const hasCommand = argv.length > 0 && !argv[0].startsWith("-");
   const command = hasCommand ? argv[0] : "check";
   const rest = hasCommand ? argv.slice(1) : argv;
   const paths: string[] = [];
   const flags = new Map<string, string | true>();
-  for (const a of rest) {
+
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i];
     if (a.startsWith("--")) {
       const eq = a.indexOf("=");
-      if (eq === -1) flags.set(a.slice(2), true);
-      else flags.set(a.slice(2, eq), a.slice(eq + 1));
+      const name = eq === -1 ? a.slice(2) : a.slice(2, eq);
+      if (!KNOWN_FLAGS.has(name)) {
+        throw new UsageError(`unknown flag --${name}\nrun 'metonym --help'`);
+      }
+      if (eq !== -1) {
+        flags.set(name, a.slice(eq + 1));
+        continue;
+      }
+      if (
+        VALUE_FLAGS.has(name) &&
+        i + 1 < rest.length &&
+        !rest[i + 1].startsWith("-")
+      ) {
+        flags.set(name, rest[i + 1]);
+        i++;
+        continue;
+      }
+      flags.set(name, true);
+    } else if (a.startsWith("-") && a !== "-") {
+      if (a === "-h") flags.set("help", true);
+      else if (a === "-v") flags.set("version", true);
+      else throw new UsageError(`unknown flag ${a}\nrun 'metonym --help'`);
     } else {
       paths.push(a);
     }
   }
+
+  const reporter = flags.get("reporter");
+  if (reporter !== undefined && reporter !== "pretty" && reporter !== "json") {
+    throw new UsageError(
+      `invalid --reporter=${String(reporter)} (allowed: pretty, json)`,
+    );
+  }
+  const analysis = flags.get("analysis");
+  if (
+    analysis !== undefined &&
+    analysis !== "auto" &&
+    analysis !== "shallow" &&
+    analysis !== "deep"
+  ) {
+    throw new UsageError(
+      `invalid --analysis=${String(analysis)} (allowed: auto, shallow, deep)`,
+    );
+  }
+
   return { command, paths, flags };
 }
 
@@ -115,6 +191,11 @@ async function loadProject(args: Args): Promise<Project> {
       );
     project.docFiles = project.docFiles.filter(match);
     project.sourceFiles = project.sourceFiles.filter(match);
+    if (project.docFiles.length === 0 && project.sourceFiles.length === 0) {
+      throw new UsageError(
+        `no documentation or source files matched: ${args.paths.join(", ")}`,
+      );
+    }
   }
   return project;
 }
@@ -223,6 +304,18 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
 }
 
 async function main(): Promise<number> {
+  try {
+    return await run();
+  } catch (err) {
+    if (err instanceof UsageError) {
+      process.stderr.write(`${c.red(`error: ${err.message}`)}\n`);
+      return 2;
+    }
+    throw err;
+  }
+}
+
+async function run(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.flags.has("help") || args.command === "help") {
     process.stdout.write(HELP);
