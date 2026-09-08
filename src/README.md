@@ -146,6 +146,14 @@ changes, traced through each example's import closure. It falls back to
 running everything when in doubt. Unchanged examples whose import closure
 hasn't changed are served from `.metonym/cache/` instead of re-executed.
 
+A cached result is invalidated by any of: the example's own body, the
+content of every file in its local import closure, the project's
+dependency lockfile (or `package.json`), the metonym/Bun tool version,
+and (for `tsx`/`jsx` examples) `jsxImportSource`. Examples with inputs
+the cache can't see, fixtures read from disk, environment variables,
+network calls, should run with `--full` in CI so they're never served
+stale.
+
 ## Docs as data
 
 `metonym extract --format=json` emits a feed a static docs site can

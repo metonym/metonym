@@ -13,7 +13,10 @@ import * as fs from "node:fs/promises";
  * removed the cache directory this write was racing against (e.g.
  * `clearCache`).
  */
-export async function writeAtomic(path: string, contents: string): Promise<void> {
+export async function writeAtomic(
+  path: string,
+  contents: string,
+): Promise<void> {
   const tempPath = `${path}.${process.pid}.${Date.now().toString(36)}.tmp`;
   await fs.writeFile(tempPath, contents, "utf-8");
   try {
