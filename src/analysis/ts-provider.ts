@@ -16,7 +16,14 @@ type TsCompilerOptions = import("typescript").CompilerOptions;
 export async function enrichWithTypeScript(
   docs: DocumentationSet,
   opts?: { tsPath?: string; sourceFiles?: string[] },
-): Promise<{ docs: DocumentationSet; diagnostics: string[] }> {
+): Promise<{
+  docs: DocumentationSet;
+  diagnostics: string[];
+  /** Repo-relative paths of every file ts.createProgram pulled in from
+   * inside root (excluding node_modules). Undefined when analysis failed
+   * before a program was built. */
+  programFiles?: string[];
+}> {
   const diagnostics: string[] = [];
 
   try {
@@ -120,7 +127,11 @@ async function enrichWithTypeScriptImpl(
   docs: DocumentationSet,
   opts: { tsPath?: string; sourceFiles?: string[] } | undefined,
   diagnostics: string[],
-): Promise<{ docs: DocumentationSet; diagnostics: string[] }> {
+): Promise<{
+  docs: DocumentationSet;
+  diagnostics: string[];
+  programFiles?: string[];
+}> {
   const tsPath = opts?.tsPath ?? Bun.resolveSync("typescript", docs.root);
   const ts = await loadTypeScriptCompiler(tsPath, docs.root);
 
@@ -239,6 +250,20 @@ async function enrichWithTypeScriptImpl(
     if (rel.includes("/.metonym-virtual/")) return null;
     return rel;
   }
+
+  // Every file ts.createProgram actually pulled in from inside root, not
+  // just the scanned `sourceFiles` passed in: local helpers reachable
+  // through imports, .d.ts files, path-alias targets. The deep-analysis
+  // cache hashes this list on top of `sourceFiles` so those reachable
+  // files invalidate the cache too.
+  const programFiles = [
+    ...new Set(
+      program
+        .getSourceFiles()
+        .map((sf) => relOf(sf.fileName))
+        .filter((f): f is string => f !== null),
+    ),
+  ].sort();
 
   const symbolByFileAndName = new Map<string, SymbolInfo>();
   for (const sym of docs.symbols) {
@@ -773,7 +798,7 @@ async function enrichWithTypeScriptImpl(
     examples: newExamples,
   };
 
-  return { docs: enrichedDocs, diagnostics };
+  return { docs: enrichedDocs, diagnostics, programFiles };
 }
 
 const COMPILER_API_PACKAGES = [

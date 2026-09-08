@@ -11,6 +11,7 @@ import {
 import {
   deepAnalysisKey,
   enrichWithTypeScriptCached,
+  lastDeepAnalysisHit,
 } from "../src/cache/deep-analysis-cache";
 import { contentKey } from "../src/cache/keys";
 
@@ -203,6 +204,87 @@ export function subtract(a: number, b: number): number {
     const key2 = await deepAnalysisKey(docs, ["src/index.ts"], fakeTsPath);
 
     expect(key1).not.toBe(key2);
+  });
+
+  test("editing a file outside `sourceFiles` but inside the program's import closure invalidates the cache", async () => {
+    mkdirSync(`${fixture}/src`, { recursive: true });
+    mkdirSync(`${fixture}/lib`, { recursive: true });
+    writeFileSync(
+      `${fixture}/package.json`,
+      JSON.stringify({
+        name: "closure-pkg",
+        exports: { ".": "./src/index.ts" },
+      }),
+    );
+    writeFileSync(
+      `${fixture}/lib/helper.ts`,
+      `export function helper(): number {\n  return 0;\n}\n`,
+    );
+    writeFileSync(
+      `${fixture}/src/index.ts`,
+      `import { helper } from "../lib/helper";
+export function add(a: number, b: number): number {
+  return a + b + helper();
+}
+`,
+    );
+    writeFileSync(
+      `${fixture}/README.md`,
+      `# closure-pkg
+
+\`\`\`ts
+import { add } from "closure-pkg";
+expect(add(1, 2)).toBe(3);
+\`\`\`
+`,
+    );
+
+    const languages = ["ts", "tsx", "js", "jsx"];
+    const readmeText = await Bun.file(`${fixture}/README.md`).text();
+    const readme = extractMarkdown(readmeText, {
+      file: "README.md",
+      languages,
+    });
+    const srcText = await Bun.file(`${fixture}/src/index.ts`).text();
+    const src = extractJsdoc(srcText, { file: "src/index.ts", languages });
+    const symbols = scanSymbols("src/index.ts", srcText);
+    const docs = assembleDocumentationSet(fixture, [
+      {
+        file: "README.md",
+        document: readme.document,
+        examples: readme.examples,
+        symbols: [],
+      },
+      {
+        file: "src/index.ts",
+        document: src.document,
+        examples: src.examples,
+        symbols,
+      },
+    ]);
+
+    await enrichWithTypeScriptCached(docs, {
+      tsPath: TS_PATH,
+      sourceFiles: ["src/index.ts"],
+    });
+    expect(lastDeepAnalysisHit).toBe(false);
+
+    await enrichWithTypeScriptCached(docs, {
+      tsPath: TS_PATH,
+      sourceFiles: ["src/index.ts"],
+    });
+    expect(lastDeepAnalysisHit).toBe(true);
+
+    writeFileSync(
+      `${fixture}/lib/helper.ts`,
+      `export function helper(): number {\n  return 1;\n}\n`,
+    );
+
+    await enrichWithTypeScriptCached(docs, {
+      tsPath: TS_PATH,
+      sourceFiles: ["src/index.ts"],
+    });
+    expect(lastDeepAnalysisHit).toBe(false);
   });
 
   test("clearing .metonym/cache removes deep-analysis entries too", async () => {
