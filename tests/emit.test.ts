@@ -954,3 +954,58 @@ test("import with both default and named specifiers", () => {
   expect(code).toContain('await import("react")');
   expect(code).toContain("const");
 });
+
+test("multi-line import transforms to one await-import line plus continuation comments", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+
+  const bodyCode = `import {
+  a,
+  b
+} from "m"`;
+
+  const ex: Example = {
+    id: "ex:test.md:1",
+    documentId: "doc:test.md",
+    source: {
+      file: "test.md",
+      start: { line: 5, column: 1, offset: 50 },
+      end: { line: 9, column: 1, offset: 100 },
+    },
+    fenceSource: {
+      file: "test.md",
+      start: { line: 4, column: 1, offset: 40 },
+      end: { line: 10, column: 1, offset: 110 },
+    },
+    language: "ts",
+    code: bodyCode,
+    kind: "assertion",
+    title: "Multi-line import",
+  };
+
+  const docSet = createDocSet([doc], [ex]);
+  const [generated] = generate(docSet);
+
+  const entry = generated.map.entries[0];
+  expect(entry.genCodeEndLine - entry.genCodeStartLine + 1).toBe(4);
+
+  const genLines = getBodyLines(
+    generated.code,
+    entry.genCodeStartLine,
+    entry.genCodeEndLine,
+  );
+
+  expect(genLines).toHaveLength(4);
+  expect(genLines[0].trim()).toBe('const { a, b } = await import("m");');
+  expect(genLines[1].trim()).toBe("// metonym: import continued");
+  expect(genLines[2].trim()).toBe("// metonym: import continued");
+  expect(genLines[3].trim()).toBe("// metonym: import continued");
+
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(generated.code),
+  ).not.toThrow();
+});
