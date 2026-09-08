@@ -50,6 +50,10 @@ export async function runCached(
     full?: boolean;
     /** Forwarded to generate() for the uncached subset (e.g. jsxImportSource, inject). */
     emit?: { jsxImportSource?: string; inject?: boolean };
+    /** Forwarded to run() for the uncached subset. */
+    timeoutMs?: number;
+    bail?: boolean | number;
+    signal?: AbortSignal;
   },
 ): Promise<RunResult> {
   const root = docs.root;
@@ -161,6 +165,9 @@ export async function runCached(
     freshResults = await run(filteredDocs, {
       generated: filteredGenerated,
       outDir,
+      timeoutMs: opts?.timeoutMs,
+      bail: opts?.bail,
+      signal: opts?.signal,
     });
   }
 

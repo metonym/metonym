@@ -522,6 +522,8 @@ describe("README.md", () => {
 
       expect(result.results.length).toBe(0);
       expect(result.totals.total).toBe(0);
+      expect(result.exitCode).toBe(0);
+      expect(result.junitMissing).toBe(false);
     } finally {
       await rm(tmpRoot, { recursive: true, force: true });
     }
@@ -668,6 +670,227 @@ describe("README.md", () => {
       expect(result.totals.skipped).toBe(0);
       expect(result.totals.durationMs).toBeGreaterThan(0);
       expect(result.exitCode).not.toBe(0);
+    } finally {
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("run() - timeout, bail, abort, nothing to run", () => {
+  function makeDocs(tmpRoot: string): DocumentationSet {
+    return {
+      irVersion: 1,
+      tool: { name: "metonym", version: "0.1.0" },
+      root: tmpRoot,
+      documents: [],
+      examples: [],
+      symbols: [],
+      relations: [],
+    };
+  }
+
+  test("timeoutMs fails a slow example with a timeout message", async () => {
+    const tmpRoot = `/tmp/metonym-timeout-${Date.now()}`;
+    await mkdir(tmpRoot, { recursive: true });
+
+    try {
+      const testCode = `import { describe, test, expect } from "bun:test";
+describe("README.md", () => {
+  test("Slow › example 1 (README.md:10)", async () => {
+    await new Promise((r) => setTimeout(r, 300));
+    expect(1).toBe(1);
+  });
+});`;
+
+      const sidecar: SidecarMap = {
+        version: 1,
+        source: "README.md",
+        testFile: "README.md.test.ts",
+        entries: [
+          {
+            exampleId: "ex:README.md:timeout1",
+            title: "Slow › example 1",
+            kind: "assertion",
+            docFile: "README.md",
+            docCodeStartLine: 10,
+            genCodeStartLine: 4,
+            genCodeEndLine: 6,
+          },
+        ],
+      };
+
+      const generated: GeneratedTest[] = [
+        { path: "README.md.test.ts", code: testCode, map: sidecar },
+      ];
+
+      const result = await run(makeDocs(tmpRoot), {
+        generated,
+        outDir: `${tmpRoot}/.metonym/tests`,
+        timeoutMs: 50,
+      });
+
+      expect(result.results[0].status).toBe("failed");
+      expect(result.results[0].failure?.message.toLowerCase()).toContain(
+        "timed out",
+      );
+    } finally {
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("bail stops the run early on failures", async () => {
+    const tmpRoot = `/tmp/metonym-bail-${Date.now()}`;
+    await mkdir(tmpRoot, { recursive: true });
+
+    try {
+      const testCode = `import { describe, test, expect } from "bun:test";
+describe("README.md", () => {
+  test("Fail › example 1 (README.md:10)", async () => {
+    expect(1).toBe(2);
+  });
+  test("Fail › example 2 (README.md:20)", async () => {
+    expect(1).toBe(3);
+  });
+});`;
+
+      const sidecar: SidecarMap = {
+        version: 1,
+        source: "README.md",
+        testFile: "README.md.test.ts",
+        entries: [
+          {
+            exampleId: "ex:README.md:bail1",
+            title: "Fail › example 1",
+            kind: "assertion",
+            docFile: "README.md",
+            docCodeStartLine: 10,
+            genCodeStartLine: 4,
+            genCodeEndLine: 5,
+          },
+          {
+            exampleId: "ex:README.md:bail2",
+            title: "Fail › example 2",
+            kind: "assertion",
+            docFile: "README.md",
+            docCodeStartLine: 20,
+            genCodeStartLine: 6,
+            genCodeEndLine: 7,
+          },
+        ],
+      };
+
+      const generated: GeneratedTest[] = [
+        { path: "README.md.test.ts", code: testCode, map: sidecar },
+      ];
+
+      const result = await run(makeDocs(tmpRoot), {
+        generated,
+        outDir: `${tmpRoot}/.metonym/tests`,
+        bail: true,
+      });
+
+      expect(result.totals.failed).toBeGreaterThanOrEqual(1);
+      expect(result.exitCode).not.toBe(0);
+    } finally {
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("an aborted signal ends the run quickly with exitCode 130", async () => {
+    const tmpRoot = `/tmp/metonym-abort-${Date.now()}`;
+    await mkdir(tmpRoot, { recursive: true });
+
+    try {
+      const testCode = `import { describe, test, expect } from "bun:test";
+describe("README.md", () => {
+  test("Slow › example 1 (README.md:10)", async () => {
+    await new Promise((r) => setTimeout(r, 5000));
+    expect(1).toBe(1);
+  });
+});`;
+
+      const sidecar: SidecarMap = {
+        version: 1,
+        source: "README.md",
+        testFile: "README.md.test.ts",
+        entries: [
+          {
+            exampleId: "ex:README.md:abort1",
+            title: "Slow › example 1",
+            kind: "assertion",
+            docFile: "README.md",
+            docCodeStartLine: 10,
+            genCodeStartLine: 4,
+            genCodeEndLine: 6,
+          },
+        ],
+      };
+
+      const generated: GeneratedTest[] = [
+        { path: "README.md.test.ts", code: testCode, map: sidecar },
+      ];
+
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 50);
+
+      const start = Date.now();
+      const result = await run(makeDocs(tmpRoot), {
+        generated,
+        outDir: `${tmpRoot}/.metonym/tests`,
+        signal: controller.signal,
+      });
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeLessThan(2500);
+      expect(result.exitCode).toBe(130);
+      expect(result.junitMissing).toBe(true);
+    } finally {
+      await rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("skips the spawn when there is nothing executable to run", async () => {
+    const tmpRoot = `/tmp/metonym-nothing-${Date.now()}`;
+    await mkdir(tmpRoot, { recursive: true });
+
+    try {
+      const testCode = `import { describe, test } from "bun:test";
+describe("README.md", () => {
+  // metonym:example ex:pending1 source=README.md:10
+  test.todo("Future › example 1 (README.md:10)");
+});`;
+
+      const sidecar: SidecarMap = {
+        version: 1,
+        source: "README.md",
+        testFile: "README.md.test.ts",
+        entries: [
+          {
+            exampleId: "ex:pending1",
+            title: "Future › example 1",
+            kind: "pending",
+            docFile: "README.md",
+            docCodeStartLine: 10,
+            genCodeStartLine: 3,
+            genCodeEndLine: 3,
+          },
+        ],
+      };
+
+      const generated: GeneratedTest[] = [
+        { path: "README.md.test.ts", code: testCode, map: sidecar },
+      ];
+
+      const result = await run(makeDocs(tmpRoot), {
+        generated,
+        outDir: `${tmpRoot}/.metonym/tests`,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.junitMissing).toBe(false);
+      expect(result.totals.total).toBe(1);
+      expect(result.totals.pending).toBe(1);
+      expect(result.results[0].status).toBe("pending");
     } finally {
       await rm(tmpRoot, { recursive: true, force: true });
     }
