@@ -1,10 +1,11 @@
 /**
  * loadConfig: error propagation for a broken metonym.config.ts/.js or an
- * invalid package.json, and documented merge precedence.
+ * invalid package.json, unknown-key rejection, --no-config, and watch-mode
+ * reload.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { loadConfig } from "../src/config";
@@ -89,5 +90,19 @@ describe("loadConfig", () => {
 
     const config = await loadConfig(root, undefined, { noConfigFile: true });
     expect(config.outDir).not.toBe("should-be-ignored");
+  });
+
+  test("reloads metonym.config.ts after it changes on disk", async () => {
+    const configPath = resolve(root, "metonym.config.ts");
+    await writeFile(configPath, "export default { outDir: 'value-a' };\n");
+    const before = await loadConfig(root);
+    expect(before.outDir).toBe("value-a");
+
+    await writeFile(configPath, "export default { outDir: 'value-b' };\n");
+    const future = new Date(Date.now() + 60_000);
+    await utimes(configPath, future, future);
+
+    const after = await loadConfig(root);
+    expect(after.outDir).toBe("value-b");
   });
 });
