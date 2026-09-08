@@ -27,8 +27,12 @@ jobs:
       - name: Build package
         run: bun run build
 
+      - name: Publish dry run
+        working-directory: package
+        run: npm publish --access public --dry-run
+
       - name: Publish to NPM
         working-directory: package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
-        run: npm publish --access public
+        run: npm publish --access public --provenance

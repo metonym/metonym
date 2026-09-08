@@ -168,7 +168,8 @@ export const htmlRenderer: Renderer = {
 // blockquote; Bun.markdown.html has no way to attach attributes to it, so
 // tag the resulting <blockquote> here to give the `blockquote[data-metonym]`
 // CSS rules something to match.
-const STATUS_BLOCKQUOTE = /<blockquote>\n<p>metonym: (.*?)<\/p>\n<\/blockquote>/g;
+const STATUS_BLOCKQUOTE =
+  /<blockquote>\n<p>metonym: (.*?)<\/p>\n<\/blockquote>/g;
 
 function statusFromText(text: string): "passed" | "failed" | "pending" | null {
   if (text.includes("✓")) return "passed";
