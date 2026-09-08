@@ -15,6 +15,10 @@ import {
   type SidecarMap,
   TOOL_VERSION,
 } from "../ir/types.ts";
+import {
+  isCompleteImportStatement,
+  joinStatementLines,
+} from "../parse/imports.ts";
 import { getTranspiler } from "../parse/transpiler.ts";
 
 /**
@@ -130,15 +134,35 @@ function transformImportLine(line: string): string {
 
 /**
  * Transform body lines: rewrite top-level static imports in place.
+ * Imports spanning multiple lines are joined, transformed onto the first
+ * line, and padded with continuation-marker comments to keep line count.
  */
 function transformBodyLines(lines: string[]): string[] {
-  return lines.map((line) => {
-    const trimmed = line.trimStart();
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const trimmed = lines[i].trimStart();
+
     if (trimmed.startsWith("import ")) {
-      return transformImportLine(line);
+      const { statement, consumed } = joinStatementLines(
+        lines,
+        i,
+        isCompleteImportStatement,
+      );
+      result.push(transformImportLine(statement));
+      for (let k = 1; k < consumed; k++) {
+        result.push("// metonym: import continued");
+      }
+      i += consumed;
+      continue;
     }
-    return line;
-  });
+
+    result.push(lines[i]);
+    i++;
+  }
+
+  return result;
 }
 
 /**

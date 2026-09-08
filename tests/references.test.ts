@@ -96,6 +96,27 @@ import * as d from "e"
   ]);
 });
 
+test("parseImportBindings: multi-line named import", () => {
+  const code = `import {
+  a,
+  b as c
+} from "mod"`;
+  const bindings = parseImportBindings(code);
+  expect(bindings).toEqual([
+    { local: "a", imported: "a", specifier: "mod" },
+    { local: "c", imported: "b", specifier: "mod" },
+  ]);
+});
+
+test("parseImportBindings: multi-line namespace import", () => {
+  const code = `import * as math
+  from "math"`;
+  const bindings = parseImportBindings(code);
+  expect(bindings).toEqual([
+    { local: "math", imported: "*", specifier: "math" },
+  ]);
+});
+
 test("exampleReferences: fixture project with re-exports and usage checking", async () => {
   const tmpDir = (await Bun.file(tmpdir()).exists()) ? tmpdir() : "/tmp";
   const fixtureRoot = (await Bun.file(
@@ -237,4 +258,51 @@ expect(pkg.add(1, 2)).toBe(3)
       await Bun.write(`${fixtureRoot}/.cleanup`, "");
     } catch {}
   }
+});
+
+test("exampleReferences: multi-line import produces a references edge", async () => {
+  const tmpDir = tmpdir();
+  const fixtureRoot = `${tmpDir}/metonym-ref-multiline-${Date.now()}-${Math.random()}`;
+
+  await Bun.write(
+    `${fixtureRoot}/package.json`,
+    JSON.stringify({ name: "ref-pkg", exports: { ".": "./src/index.ts" } }),
+  );
+  await Bun.write(
+    `${fixtureRoot}/src/index.ts`,
+    `export function add(a: number, b: number) { return a + b }`,
+  );
+  await Bun.write(
+    `${fixtureRoot}/README.md`,
+    `# Test
+
+\`\`\`ts
+import {
+  add
+} from "ref-pkg"
+expect(add(2, 3)).toBe(5)
+\`\`\`
+`,
+  );
+
+  const docs = await extract({
+    root: fixtureRoot,
+    config: {
+      root: fixtureRoot,
+      include: ["README.md"],
+      exclude: ["**/node_modules/**"],
+      outDir: ".metonym/tests",
+      languages: ["ts", "tsx", "js", "jsx"],
+      inject: true,
+    },
+    docFiles: ["README.md"],
+    sourceFiles: ["src/index.ts"],
+  });
+
+  const addSym = docs.symbols.find((s) => s.name === "add");
+  expect(addSym).toBeDefined();
+
+  const refs = exampleReferences(docs).filter((r) => r.kind === "references");
+  expect(refs.length).toBe(1);
+  expect(refs[0].to).toBe(addSym?.id);
 });

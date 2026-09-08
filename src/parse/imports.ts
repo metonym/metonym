@@ -1,5 +1,5 @@
 /**
- * Static import statement parser for single-line imports.
+ * Static import statement parser.
  * Extracts import bindings (local name, imported name, module specifier).
  */
 
@@ -10,23 +10,70 @@ export interface ImportBinding {
 }
 
 /**
- * Parse complete single-line static import statements.
+ * Check whether `text` — a statement, possibly with continuation lines
+ * already joined by spaces — is a syntactically terminated import.
+ */
+export function isCompleteImportStatement(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    /^import\s*["'][^"']+["']\s*;?\s*$/.test(trimmed) ||
+    /from\s+["'][^"']+["']\s*(?:(?:with|assert)\s*\{[^{}]*\}\s*)?;?\s*$/.test(
+      trimmed,
+    ) ||
+    /=\s*require\(\s*["'][^"']+["']\s*\)\s*;?\s*$/.test(trimmed)
+  );
+}
+
+/**
+ * Join a statement that may span multiple lines, starting at `lines[startIdx]`.
+ * Consumes lines until `isComplete` is satisfied (or input runs out),
+ * collapsing internal whitespace while preserving the first line's indent.
+ */
+export function joinStatementLines(
+  lines: string[],
+  startIdx: number,
+  isComplete: (text: string) => boolean,
+): { statement: string; consumed: number } {
+  const leading = lines[startIdx].match(/^\s*/)?.[0] ?? "";
+  let text = lines[startIdx].trim();
+  let consumed = 1;
+  while (!isComplete(text) && startIdx + consumed < lines.length) {
+    text = `${text} ${lines[startIdx + consumed].trim()}`;
+    consumed++;
+  }
+  return { statement: `${leading}${text.replace(/\s+/g, " ")}`, consumed };
+}
+
+/**
+ * Parse static import statements, including ones spanning multiple lines.
  * Supports: default, named, namespace, mixed, side-effect imports.
  * Skips type-only imports and type specifiers in named imports.
- * Multi-line imports are not goal and will be skipped.
  * Returns bindings in source order.
  */
 export function parseImportBindings(code: string): ImportBinding[] {
   const bindings: ImportBinding[] = [];
   const lines = code.split("\n");
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  let i = 0;
+  while (i < lines.length) {
+    const trimmedStart = lines[i].trim();
 
-    if (!trimmed.startsWith("import ")) continue;
+    if (!trimmedStart.startsWith("import ")) {
+      i++;
+      continue;
+    }
+
+    const { statement, consumed } = joinStatementLines(
+      lines,
+      i,
+      isCompleteImportStatement,
+    );
+    i += consumed;
+
+    const line = statement.trim();
 
     // Skip type-only imports: `import type { ... } from "..."`
-    if (/^\s*import\s+type\s+/.test(line)) continue;
+    if (/^import\s+type\s+/.test(line)) continue;
 
     const specifierMatch = line.match(/["']([^"']+)["']\s*;?\s*$/);
     if (!specifierMatch) continue;
