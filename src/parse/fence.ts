@@ -43,16 +43,56 @@ export function lineOffsetsOf(lines: string[]): number[] {
   return lineOffsets;
 }
 
-export function scanFences(md: string): Fence[] {
-  return scanFencesFromLines(md.split("\n"));
+export interface ScanFencesOptions {
+  /** Also treat `{/* … *\/}` blocks as inert (MDX). */
+  jsxComments?: boolean;
 }
 
-export function scanFencesFromLines(lines: string[]): Fence[] {
+export function scanFences(md: string, opts?: ScanFencesOptions): Fence[] {
+  return scanFencesFromLines(md.split("\n"), opts);
+}
+
+export function scanFencesFromLines(
+  lines: string[],
+  opts?: ScanFencesOptions,
+): Fence[] {
   const result: Fence[] = [];
   const lineOffsets = lineOffsetsOf(lines);
+  const jsxComments = opts?.jsxComments ?? false;
 
   let i = 0;
+  let inHtmlComment = false;
+  let inJsxComment = false;
   while (i < lines.length) {
+    if (inHtmlComment) {
+      if (lines[i].includes("-->")) inHtmlComment = false;
+      i++;
+      continue;
+    }
+    if (inJsxComment) {
+      if (lines[i].includes("*/}")) inJsxComment = false;
+      i++;
+      continue;
+    }
+
+    const htmlCommentStart = startsHtmlComment(lines[i]);
+    if (htmlCommentStart !== null) {
+      if (lines[i].indexOf("-->", htmlCommentStart) === -1) {
+        inHtmlComment = true;
+      }
+      i++;
+      continue;
+    }
+
+    if (jsxComments) {
+      const jsxIdx = lines[i].indexOf("{/*");
+      if (jsxIdx !== -1 && lines[i].indexOf("*/}", jsxIdx) === -1) {
+        inJsxComment = true;
+        i++;
+        continue;
+      }
+    }
+
     const opener = parseOpeningFence(lines[i]);
     if (!opener) {
       i++;
@@ -154,6 +194,18 @@ function isClosingFence(line: string, opener: Opener): boolean {
   if (count < opener.count) return false;
 
   return /^\s*$/.test(line.substring(pos));
+}
+
+/** Position right after the `<!--` marker, or null if the line (after ≤3 spaces of indent) doesn't open one. */
+function startsHtmlComment(line: string): number | null {
+  let indent = 0;
+  let pos = 0;
+  while (pos < line.length && line[pos] === " " && indent < 4) {
+    indent++;
+    pos++;
+  }
+  if (indent >= 4) return null;
+  return line.startsWith("<!--", pos) ? pos + 4 : null;
 }
 
 function stripIndent(line: string, indent: number): string {

@@ -41,13 +41,14 @@ export function extractMarkdown(
 
   const lines = text.split("\n");
   const lineOffsets = lineOffsetsOf(lines);
-  const fences = scanFencesFromLines(lines);
-
-  const headings = extractHeadings(lines, fences);
 
   const basename = file.split("/").pop() || file;
   const isReadme = basename.toLowerCase() === "readme.md";
   const isMdx = file.toLowerCase().endsWith(".mdx");
+
+  const fences = scanFencesFromLines(lines, { jsxComments: isMdx });
+
+  const headings = extractHeadings(lines, fences);
 
   // MDX: headings inside multi-line JSX comments ({/* … */}) are not real
   // headings. (Other MDX constructs — imports/exports/JSX blocks — never
