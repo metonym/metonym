@@ -8,9 +8,11 @@
  *   metonym build            render docs (--format=markdown|html|json|jsonl)
  */
 
+import * as fs from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { resolveAnalysisMode } from "../analysis/provider";
 import { extractCachedWithKeys } from "../cache/extract-cache";
+import { writeAtomic } from "../cache/fs";
 import { runCached } from "../cache/result-cache";
 import { generate } from "../emit/generate";
 import { extract } from "../extract";
@@ -54,6 +56,7 @@ const KNOWN_FLAGS = new Set([
   "filter",
   "only",
   "list",
+  "failed",
   "reporter",
   "changed",
   "watch",
@@ -175,6 +178,7 @@ Flags:
   --filter=<substring>                only run examples whose title matches
   --only=<id|file:line>               run only these examples (repeatable)
   --list                              print selected examples, don't run them
+  --failed                            run only examples that failed last run
   --reporter=pretty|json              check output format (default pretty)
   --root=<dir>                        project root (default cwd)
   --analysis=auto|shallow|deep        symbol analysis depth (deep needs typescript)
@@ -295,6 +299,74 @@ function checkNeedsAnalysis(project: Project, args: Args): boolean {
   return project.config.analysis === "deep" || args.flags.has("changed");
 }
 
+function emptyRunResult(project: Project): RunResult {
+  return {
+    results: [],
+    totals: {
+      total: 0,
+      passed: 0,
+      failed: 0,
+      pending: 0,
+      skipped: 0,
+      durationMs: 0,
+    },
+    outDir: resolveOutDir(project.root, project.config.outDir),
+    exitCode: 0,
+  };
+}
+
+interface LastRunFile {
+  version: 1;
+  at: string;
+  root: string;
+  results: { exampleId: string; status: string; docFile: string }[];
+  /** The run's JUnit report was missing, so `skipped` results never actually ran. */
+  junitMissing?: boolean;
+}
+
+function lastRunPath(root: string): string {
+  return `${root}/.metonym/cache/last-run.json`;
+}
+
+/** Persists the outcome of a non-`--list` `check`, for a later `--failed`. */
+async function writeLastRun(
+  project: Project,
+  result: RunResult,
+): Promise<void> {
+  await fs.mkdir(`${project.root}/.metonym/cache`, { recursive: true });
+  await writeAtomic(
+    lastRunPath(project.root),
+    JSON.stringify({
+      version: 1,
+      at: new Date().toISOString(),
+      root: ".",
+      results: result.results.map((r) => ({
+        exampleId: r.exampleId,
+        status: r.status,
+        docFile: r.docFile,
+      })),
+      ...(result.junitMissing ? { junitMissing: true } : {}),
+    } satisfies LastRunFile),
+  );
+}
+
+/** `check --failed`: the ids to re-run, from the last recorded run. */
+async function readFailedIds(root: string): Promise<string[]> {
+  let lastRun: LastRunFile;
+  try {
+    lastRun = JSON.parse(await Bun.file(lastRunPath(root)).text());
+  } catch {
+    throw new UsageError("no previous run recorded; run 'metonym check' first");
+  }
+  return lastRun.results
+    .filter(
+      (r) =>
+        r.status === "failed" ||
+        (lastRun.junitMissing && r.status === "skipped"),
+    )
+    .map((r) => r.exampleId);
+}
+
 /** `check --list`: print the selected examples to stdout, without generating or running anything. */
 function listExamples(docs: DocumentationSet, json: boolean): void {
   if (json) {
@@ -323,12 +395,20 @@ function listExamples(docs: DocumentationSet, json: boolean): void {
 
 async function checkOnce(project: Project, args: Args): Promise<RunResult> {
   const full = args.flags.has("full");
+  let failedOnly: string[] | undefined;
+  if (args.flags.has("failed")) {
+    failedOnly = await readFailedIds(project.root);
+    if (failedOnly.length === 0) {
+      process.stderr.write("nothing failed in the last run\n");
+      return emptyRunResult(project);
+    }
+  }
   let docs = await extractFor(project, full, {
     skipAnalysis: !checkNeedsAnalysis(project, args),
   });
   selectExamples(docs, {
     filter: strFlag(args.flags, "filter"),
-    only: onlyFlag(args.flags),
+    only: failedOnly ?? onlyFlag(args.flags),
   });
   if (args.flags.has("changed") && !full) {
     const { selectAffected } = await import("../graph/select");
@@ -346,19 +426,7 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
   }
   if (args.flags.has("list")) {
     listExamples(docs, args.flags.get("reporter") === "json");
-    return {
-      results: [],
-      totals: {
-        total: 0,
-        passed: 0,
-        failed: 0,
-        pending: 0,
-        skipped: 0,
-        durationMs: 0,
-      },
-      outDir: resolveOutDir(project.root, project.config.outDir),
-      exitCode: 0,
-    };
+    return emptyRunResult(project);
   }
   const emit = {
     jsxImportSource: project.config.jsxImportSource,
@@ -378,6 +446,7 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
   } else {
     await reportPretty(result, project.root);
   }
+  await writeLastRun(project, result);
   return result;
 }
 
