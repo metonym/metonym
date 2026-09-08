@@ -158,6 +158,56 @@ describe("parseJUnit", () => {
     expect(cases[0].status).toBe("passed");
     expect(cases[1].status).toBe("failed");
   });
+
+  test("parses self-closing failure element (timeout)", () => {
+    const xml = `<testcase name="slow test" classname="multi" time="5.0" file="fixtures/multi.test.ts" line="8">
+        <failure type="TimeoutError" message="test timed out" />
+      </testcase>`;
+    const cases = parseJUnit(xml);
+
+    expect(cases.length).toBe(1);
+    expect(cases[0].status).toBe("failed");
+    expect(cases[0].failure?.type).toBe("TimeoutError");
+    expect(cases[0].failure?.message).toBe("test timed out");
+    expect(cases[0].failure?.body).toBe("");
+  });
+
+  test("parses self-closing failure element with attribute order reversed", () => {
+    const xml = `<testcase name="slow test" classname="multi" time="5.0">
+        <failure message="test timed out" type="TimeoutError" />
+      </testcase>`;
+    const cases = parseJUnit(xml);
+
+    expect(cases.length).toBe(1);
+    expect(cases[0].status).toBe("failed");
+    expect(cases[0].failure?.type).toBe("TimeoutError");
+    expect(cases[0].failure?.message).toBe("test timed out");
+  });
+
+  test("treats a bare <error> element the same as failure", () => {
+    const xml = `<testcase name="uncaught" classname="multi" time="0.01">
+        <error type="ReferenceError" message="x is not defined">ReferenceError: x is not defined</error>
+      </testcase>`;
+    const cases = parseJUnit(xml);
+
+    expect(cases.length).toBe(1);
+    expect(cases[0].status).toBe("failed");
+    expect(cases[0].failure?.type).toBe("ReferenceError");
+    expect(cases[0].failure?.message).toBe("x is not defined");
+    expect(cases[0].failure?.body).toContain("ReferenceError");
+  });
+
+  test("treats a self-closing <error/> element the same as failure", () => {
+    const xml = `<testcase name="uncaught" classname="multi" time="0.01">
+        <error type="ReferenceError" message="x is not defined" />
+      </testcase>`;
+    const cases = parseJUnit(xml);
+
+    expect(cases.length).toBe(1);
+    expect(cases[0].status).toBe("failed");
+    expect(cases[0].failure?.type).toBe("ReferenceError");
+    expect(cases[0].failure?.message).toBe("x is not defined");
+  });
 });
 
 describe("run() - end-to-end execution", () => {
