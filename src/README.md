@@ -374,7 +374,8 @@ paths, not glob patterns).
 | --- | --- |
 | `--filter=<substring>` | Only run examples whose title contains the substring |
 | `--only=<id\|file:line>` | Only run these examples: a full or prefix example id (`ex:README.md:44a5`), or `<docFile>:<startLine>` (`README.md:18`). Repeatable, or comma-separated. Errors if an entry matches nothing. |
-| `--reporter=pretty\|json` | Output format; default `pretty` |
+| `--list` | Print the selected examples (after `--filter`/`--only`/`--changed`) and exit; never generates or runs anything |
+| `--reporter=pretty\|json` | Output format; default `pretty`. With `--list`, `json` prints `{ tool, examples: [{ id, kind, language, docFile, line, title, group? }] }` instead of tab-separated lines |
 | `--changed[=<ref>]` | Only examples affected by git changes since `<ref>` (default: working tree vs `HEAD`), traced through each example's import closure. `<ref>` is compared from its merge-base with `HEAD` (three-dot semantics). Falls back to running everything when the trace is ambiguous. |
 | `--watch` | Re-run on file changes; runs until interrupted |
 | `--full` | Bypass the result cache, execute every example |

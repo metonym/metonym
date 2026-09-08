@@ -18,6 +18,7 @@ import {
   type DocumentationSet,
   type Project,
   type RunResult,
+  TOOL_NAME,
   TOOL_VERSION,
 } from "../ir/types";
 import { scan } from "../scan/scan";
@@ -52,6 +53,7 @@ const KNOWN_FLAGS = new Set([
   "format",
   "filter",
   "only",
+  "list",
   "reporter",
   "changed",
   "watch",
@@ -172,6 +174,7 @@ Flags:
   --out-dir=<dir>                     output directory
   --filter=<substring>                only run examples whose title matches
   --only=<id|file:line>               run only these examples (repeatable)
+  --list                              print selected examples, don't run them
   --reporter=pretty|json              check output format (default pretty)
   --root=<dir>                        project root (default cwd)
   --analysis=auto|shallow|deep        symbol analysis depth (deep needs typescript)
@@ -292,6 +295,32 @@ function checkNeedsAnalysis(project: Project, args: Args): boolean {
   return project.config.analysis === "deep" || args.flags.has("changed");
 }
 
+/** `check --list`: print the selected examples to stdout, without generating or running anything. */
+function listExamples(docs: DocumentationSet, json: boolean): void {
+  if (json) {
+    process.stdout.write(
+      `${JSON.stringify({
+        tool: { name: TOOL_NAME, version: TOOL_VERSION },
+        examples: docs.examples.map((e) => ({
+          id: e.id,
+          kind: e.kind,
+          language: e.language,
+          docFile: e.source.file,
+          line: e.source.start.line,
+          title: e.title,
+          ...(e.group ? { group: e.group } : {}),
+        })),
+      })}\n`,
+    );
+    return;
+  }
+  for (const e of docs.examples) {
+    process.stdout.write(
+      `${e.id}\t${e.kind}\t${e.source.file}:${e.source.start.line}\t${e.title}\n`,
+    );
+  }
+}
+
 async function checkOnce(project: Project, args: Args): Promise<RunResult> {
   const full = args.flags.has("full");
   let docs = await extractFor(project, full, {
@@ -314,6 +343,22 @@ async function checkOnce(project: Project, args: Args): Promise<RunResult> {
       }
       docs = selection.docs;
     }
+  }
+  if (args.flags.has("list")) {
+    listExamples(docs, args.flags.get("reporter") === "json");
+    return {
+      results: [],
+      totals: {
+        total: 0,
+        passed: 0,
+        failed: 0,
+        pending: 0,
+        skipped: 0,
+        durationMs: 0,
+      },
+      outDir: resolveOutDir(project.root, project.config.outDir),
+      exitCode: 0,
+    };
   }
   const emit = {
     jsxImportSource: project.config.jsxImportSource,
