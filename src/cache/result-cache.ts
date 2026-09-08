@@ -2,6 +2,13 @@
  * Result cache.
  * Caches passing test results by example id + import closure hash + version.
  * Failures are never cached. Cache is advisory; corruption is tolerated.
+ *
+ * The version half of the key includes a project-level dependency
+ * fingerprint (`bun.lock`/`bun.lockb`/`package.json`), because the import
+ * closure walk only follows local files and never node_modules: an example
+ * that imports an external or workspace package would otherwise be cached
+ * forever across dependency bumps. By design this means every dependency
+ * change invalidates every cached result, not just the affected examples.
  */
 
 import * as fs from "node:fs/promises";
@@ -15,6 +22,7 @@ import type {
 import {
   type ClosureFileCache,
   closureKey,
+  contentKey,
   createClosureFileCache,
   versionKey,
 } from "./keys.ts";
@@ -47,7 +55,10 @@ export async function runCached(
   const resultsCachePath = `${root}/.metonym/cache/results.json`;
   const outDir = opts?.outDir ?? `${root}/.metonym/tests`;
   const fullRun = opts?.full ?? false;
-  const vKey = versionKey();
+  // jsxImportSource isn't part of configKey, and it changes what tsx/jsx
+  // examples emit, so fold it in here alongside the shared version key.
+  const jsxKey = contentKey(JSON.stringify(opts?.emit?.jsxImportSource ?? ""));
+  const vKey = `${await versionKey(root)}:${jsxKey}`;
 
   // Load results cache (tolerate absence/corruption)
   let resultsCache: ResultsFile = { version: 1, entries: {} };

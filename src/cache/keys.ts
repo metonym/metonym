@@ -29,10 +29,35 @@ export function configKey(config: MetonymConfig): string {
 }
 
 /**
- * Compute version key from tool version and Bun version.
+ * Compute version key from tool version, Bun version, and a project-level
+ * dependency fingerprint. The fingerprint is the content of `bun.lock`
+ * (falling back to `bun.lockb`, then `package.json`), so bumping any
+ * dependency, including ones the import-closure walk skips because
+ * they're under node_modules, changes the key.
  */
-export function versionKey(): string {
-  return `${TOOL_VERSION}:${Bun.version}`;
+export async function versionKey(root: string): Promise<string> {
+  return `${TOOL_VERSION}:${Bun.version}:${await dependencyFingerprint(root)}`;
+}
+
+async function dependencyFingerprint(root: string): Promise<string> {
+  try {
+    return contentKey(await Bun.file(`${root}/bun.lock`).text());
+  } catch {}
+  try {
+    const bytes = new Uint8Array(
+      await Bun.file(`${root}/bun.lockb`).arrayBuffer(),
+    );
+    return Bun.hash.xxHash64(bytes).toString(16).padStart(16, "0");
+  } catch {}
+  try {
+    return contentKey(await Bun.file(`${root}/package.json`).text());
+  } catch {}
+  return "no-deps";
+}
+
+/** Strip macOS's `/private` prefix so temp-dir paths compare consistently. */
+function stripPrivatePrefix(p: string): string {
+  return p.replace(/^\/private/, "");
 }
 
 /**
@@ -109,6 +134,7 @@ async function loadClosureFileInfo(
   }
 
   const dirOfFile = relPath.substring(0, relPath.lastIndexOf("/") + 1) || "./";
+  const normalizedRoot = stripPrivatePrefix(root);
 
   for (const imp of imports) {
     let resolved: string;
@@ -120,11 +146,13 @@ async function loadClosureFileInfo(
       continue;
     }
 
-    if (!resolved.startsWith(root)) continue;
+    const normalizedResolved = stripPrivatePrefix(resolved);
 
-    if (resolved.includes("/node_modules/")) continue;
+    if (!normalizedResolved.startsWith(normalizedRoot)) continue;
 
-    localImports.push(resolved.slice(root.length + 1));
+    if (normalizedResolved.includes("/node_modules/")) continue;
+
+    localImports.push(normalizedResolved.slice(normalizedRoot.length + 1));
   }
 
   return { hash, localImports };
