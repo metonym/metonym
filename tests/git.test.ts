@@ -103,4 +103,26 @@ describe("changedFiles", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  test("rename: a git-mv shows up as both the old and new path", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "git-test-"));
+    try {
+      initRepo(repo);
+      await Bun.write(
+        join(repo, "a.ts"),
+        "export const a = 1;\n// padding to pass git's rename similarity threshold\n",
+      );
+      git(["add", "-A"], repo);
+      git(["commit", "-qm", "init"], repo);
+
+      git(["mv", "a.ts", "b.ts"], repo);
+      git(["commit", "-qm", "rename"], repo);
+
+      const result = changedFiles(repo, "HEAD~1");
+      expect(result.changedFiles).toContain("a.ts");
+      expect(result.changedFiles).toContain("b.ts");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
