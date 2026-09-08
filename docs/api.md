@@ -7,7 +7,7 @@ Extracted from 43 exports reachable from `src/index.ts`, via `metonym extract --
 
 ### `defineConfig`
 
-[src/config.ts:16](../src/config.ts#L16)
+[src/config.ts:18](../src/config.ts#L18)
 
 `(c: Partial<MetonymConfig>): Partial<MetonymConfig>`
 
@@ -18,27 +18,30 @@ Enables TypeScript intellisense and validation without runtime overhead.
 
 ### `generate`
 
-[src/emit/generate.ts:415](../src/emit/generate.ts#L415)
+[src/emit/generate.ts:555](../src/emit/generate.ts#L555)
 
-`(docs: DocumentationSet, opts?: { jsxImportSource?: string; }): GeneratedTest[]`
+`(docs: DocumentationSet, opts?: { jsxImportSource?: string; inject?: boolean; }): GeneratedTest[]`
 
 Generate test files from a DocumentationSet.
-One GeneratedTest per Document with executable examples.
+One GeneratedTest per Document that has any (non-ignored) examples, even
+when they're all `no-run` — that's the only way their transpile
+diagnostics reach the caller.
 
 - `@param` docs - The documentation set to generate tests from
-- `@param` opts - Optional generation options (e.g., jsxImportSource for tsx/jsx examples)
+- `@param` opts - Optional generation options (jsxImportSource for tsx/jsx
+  examples; inject controls whether `expect` is auto-imported, default true)
 
 ## src/extract.ts
 
 ### `assembleDocumentationSet`
 
-[src/extract.ts:78](../src/extract.ts#L78)
+[src/extract.ts:94](../src/extract.ts#L94)
 
-`(root: string, parts: FilePart[]): DocumentationSet`
+`(root: string, parts: FilePart[], extraWarnings?: string[]): DocumentationSet`
 
 ### `extract`
 
-[src/extract.ts:177](../src/extract.ts#L177)
+[src/extract.ts:240](../src/extract.ts#L240)
 
 `(project: Project): Promise<DocumentationSet>`
 
@@ -57,9 +60,9 @@ Sanitizes node ids for Mermaid compatibility.
 
 ### `checkCoverage`
 
-[src/graph/queries.ts:334](../src/graph/queries.ts#L334)
+[src/graph/queries.ts:355](../src/graph/queries.ts#L355)
 
-`(docs: DocumentationSet, gates: NonNullable<MetonymConfig["coverage"]>): CoverageGateResult`
+`(docs: DocumentationSet, gates: NonNullable<MetonymConfig["coverage"]>, report?: CoverageReport): CoverageGateResult`
 
 Check documentation coverage against configured CI gates.
 Returns structured result with pass/fail status and specific failure messages.
@@ -67,14 +70,18 @@ Returns structured result with pass/fail status and specific failure messages.
 Rules:
 - minDocumented: percentage of symbols with documentation (documented/total*100)
 - minExamples: percentage of symbols with executable examples (withExamples/total*100)
+- minExercised: percentage of symbols referenced by an executable example (exercised/total*100)
 - failOnUndocumented: fail if any export lacks documentation entirely
 - failOnTypeErrors: fail if any example has a type error (deep analysis only)
 
-When total symbols is 0, both percentage gates pass.
+When total symbols is 0, all percentage gates pass.
+
+Pass a precomputed `report` (e.g. one already rendered to the user) to
+avoid recomputing `coverage(docs)`.
 
 ### `coverage`
 
-[src/graph/queries.ts:44](../src/graph/queries.ts#L44)
+[src/graph/queries.ts:45](../src/graph/queries.ts#L45)
 
 `(docs: DocumentationSet): CoverageReport`
 
@@ -102,9 +109,9 @@ and call it for each example in document order.
 
 ### `DEFAULT_CONFIG`
 
-[src/ir/types.ts:291](../src/ir/types.ts#L291)
+[src/ir/types.ts:303](../src/ir/types.ts#L303)
 
-`{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: "auto" | "shallow" | "deep" | undefined; coverage?: { minDocumented?: number; minExamples?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }`
+`{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: "auto" | "shallow" | "deep" | undefined; coverage?: { minDocumented?: number; minExamples?: number; minExercised?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }`
 
 ### `Diagnostic`
 
@@ -147,25 +154,25 @@ Positions are relative to `example.code`, same convention as HoverInfo.
 
 ### `ExampleResult`
 
-[src/ir/types.ts:201](../src/ir/types.ts#L201)
+[src/ir/types.ts:203](../src/ir/types.ts#L203)
 
 `ExampleResult`
 
 ### `ExampleStatus`
 
-[src/ir/types.ts:187](../src/ir/types.ts#L187)
+[src/ir/types.ts:189](../src/ir/types.ts#L189)
 
 `"pending" | "passed" | "failed" | "skipped"`
 
 ### `FailureInfo`
 
-[src/ir/types.ts:189](../src/ir/types.ts#L189)
+[src/ir/types.ts:191](../src/ir/types.ts#L191)
 
 `FailureInfo`
 
 ### `GeneratedTest`
 
-[src/ir/types.ts:176](../src/ir/types.ts#L176)
+[src/ir/types.ts:178](../src/ir/types.ts#L178)
 
 `GeneratedTest`
 
@@ -187,7 +194,7 @@ offset; `line`/`column` are 1-indexed within the snippet.
 
 ### `MetonymConfig`
 
-[src/ir/types.ts:256](../src/ir/types.ts#L256)
+[src/ir/types.ts:266](../src/ir/types.ts#L266)
 
 `MetonymConfig`
 
@@ -201,7 +208,7 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `Project`
 
-[src/ir/types.ts:299](../src/ir/types.ts#L299)
+[src/ir/types.ts:311](../src/ir/types.ts#L311)
 
 `Project`
 
@@ -213,37 +220,37 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `RenderedFile`
 
-[src/ir/types.ts:231](../src/ir/types.ts#L231)
+[src/ir/types.ts:241](../src/ir/types.ts#L241)
 
 `RenderedFile`
 
 ### `Renderer`
 
-[src/ir/types.ts:246](../src/ir/types.ts#L246)
+[src/ir/types.ts:256](../src/ir/types.ts#L256)
 
 `Renderer<TOptions>`
 
 ### `RenderOptions`
 
-[src/ir/types.ts:241](../src/ir/types.ts#L241)
+[src/ir/types.ts:251](../src/ir/types.ts#L251)
 
 `RenderOptions`
 
 ### `RenderResult`
 
-[src/ir/types.ts:237](../src/ir/types.ts#L237)
+[src/ir/types.ts:247](../src/ir/types.ts#L247)
 
 `RenderResult`
 
 ### `RunResult`
 
-[src/ir/types.ts:212](../src/ir/types.ts#L212)
+[src/ir/types.ts:214](../src/ir/types.ts#L214)
 
 `RunResult`
 
 ### `SidecarEntry`
 
-[src/ir/types.ts:159](../src/ir/types.ts#L159)
+[src/ir/types.ts:161](../src/ir/types.ts#L161)
 
 `SidecarEntry`
 
@@ -253,7 +260,7 @@ Import statements are rewritten in place, one line each, preserving count.
 
 ### `SidecarMap`
 
-[src/ir/types.ts:169](../src/ir/types.ts#L169)
+[src/ir/types.ts:171](../src/ir/types.ts#L171)
 
 `SidecarMap`
 
@@ -285,17 +292,15 @@ Import statements are rewritten in place, one line each, preserving count.
 
 ### `parseInfoString`
 
-[src/parse/info.ts:35](../src/parse/info.ts#L35)
+[src/parse/info.ts:77](../src/parse/info.ts#L77)
 
 `(info: string): InfoString`
-
-Parse a fence info string into language, example kind, and attributes.
 
 ## src/parse/jsdoc.ts
 
 ### `extractJsdoc`
 
-[src/parse/jsdoc.ts:46](../src/parse/jsdoc.ts#L46)
+[src/parse/jsdoc.ts:47](../src/parse/jsdoc.ts#L47)
 
 `(source: string, opts: { file: string; languages?: string[]; blocks?: JsdocBlock[]; lines?: string[]; lineOffsets?: number[]; }): ExtractJsdocResult`
 
@@ -303,7 +308,7 @@ Parse a fence info string into language, example kind, and attributes.
 
 ### `extractMarkdown`
 
-[src/parse/markdown.ts:35](../src/parse/markdown.ts#L35)
+[src/parse/markdown.ts:36](../src/parse/markdown.ts#L36)
 
 `(text: string, opts: { file: string; languages?: string[]; }): ExtractMarkdownResult`
 
@@ -326,7 +331,7 @@ Scan a source file's exports: names, positions, and declaration kinds.
 
 [src/run/run.ts:19](../src/run/run.ts#L19)
 
-`(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; }): Promise<RunResult>`
+`(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string; }): Promise<RunResult>`
 
 ## src/scan/scan.ts
 
@@ -334,7 +339,7 @@ Scan a source file's exports: names, positions, and declaration kinds.
 
 [src/scan/scan.ts:13](../src/scan/scan.ts#L13)
 
-`(opts?: { root?: string; config?: Partial<MetonymConfig>; }): Promise<Project>`
+`(opts?: { root?: string; config?: Partial<MetonymConfig>; noConfigFile?: boolean; }): Promise<Project>`
 
 Scan a project root for documentation and source files.
 

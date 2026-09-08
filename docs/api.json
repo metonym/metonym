@@ -7,7 +7,7 @@
     {
       "name": "defineConfig",
       "file": "src/config.ts",
-      "line": 16,
+      "line": 18,
       "declKind": "function",
       "signature": "(c: Partial<MetonymConfig>): Partial<MetonymConfig>",
       "description": "Identity function for typing aid when defining config in code.\nEnables TypeScript intellisense and validation without runtime overhead.",
@@ -17,14 +17,14 @@
     {
       "name": "generate",
       "file": "src/emit/generate.ts",
-      "line": 415,
-      "declKind": null,
-      "signature": "(docs: DocumentationSet, opts?: { jsxImportSource?: string; }): GeneratedTest[]",
-      "description": "Generate test files from a DocumentationSet.\nOne GeneratedTest per Document with executable examples.",
+      "line": 555,
+      "declKind": "function",
+      "signature": "(docs: DocumentationSet, opts?: { jsxImportSource?: string; inject?: boolean; }): GeneratedTest[]",
+      "description": "Generate test files from a DocumentationSet.\nOne GeneratedTest per Document that has any (non-ignored) examples, even\nwhen they're all `no-run` — that's the only way their transpile\ndiagnostics reach the caller.",
       "tags": {
         "param": [
           "docs - The documentation set to generate tests from",
-          "opts - Optional generation options (e.g., jsxImportSource for tsx/jsx examples)"
+          "opts - Optional generation options (jsxImportSource for tsx/jsx\n  examples; inject controls whether `expect` is auto-imported, default true)"
         ]
       },
       "typeOnly": false
@@ -32,9 +32,9 @@
     {
       "name": "assembleDocumentationSet",
       "file": "src/extract.ts",
-      "line": 78,
+      "line": 94,
       "declKind": "function",
-      "signature": "(root: string, parts: FilePart[]): DocumentationSet",
+      "signature": "(root: string, parts: FilePart[], extraWarnings?: string[]): DocumentationSet",
       "description": null,
       "tags": null,
       "typeOnly": false
@@ -42,7 +42,7 @@
     {
       "name": "extract",
       "file": "src/extract.ts",
-      "line": 177,
+      "line": 240,
       "declKind": "function",
       "signature": "(project: Project): Promise<DocumentationSet>",
       "description": null,
@@ -62,17 +62,17 @@
     {
       "name": "checkCoverage",
       "file": "src/graph/queries.ts",
-      "line": 334,
+      "line": 355,
       "declKind": "function",
-      "signature": "(docs: DocumentationSet, gates: NonNullable<MetonymConfig[\"coverage\"]>): CoverageGateResult",
-      "description": "Check documentation coverage against configured CI gates.\nReturns structured result with pass/fail status and specific failure messages.\n\nRules:\n- minDocumented: percentage of symbols with documentation (documented/total*100)\n- minExamples: percentage of symbols with executable examples (withExamples/total*100)\n- failOnUndocumented: fail if any export lacks documentation entirely\n- failOnTypeErrors: fail if any example has a type error (deep analysis only)\n\nWhen total symbols is 0, both percentage gates pass.",
+      "signature": "(docs: DocumentationSet, gates: NonNullable<MetonymConfig[\"coverage\"]>, report?: CoverageReport): CoverageGateResult",
+      "description": "Check documentation coverage against configured CI gates.\nReturns structured result with pass/fail status and specific failure messages.\n\nRules:\n- minDocumented: percentage of symbols with documentation (documented/total*100)\n- minExamples: percentage of symbols with executable examples (withExamples/total*100)\n- minExercised: percentage of symbols referenced by an executable example (exercised/total*100)\n- failOnUndocumented: fail if any export lacks documentation entirely\n- failOnTypeErrors: fail if any example has a type error (deep analysis only)\n\nWhen total symbols is 0, all percentage gates pass.\n\nPass a precomputed `report` (e.g. one already rendered to the user) to\navoid recomputing `coverage(docs)`.",
       "tags": null,
       "typeOnly": false
     },
     {
       "name": "coverage",
       "file": "src/graph/queries.ts",
-      "line": 44,
+      "line": 45,
       "declKind": "function",
       "signature": "(docs: DocumentationSet): CoverageReport",
       "description": "Analyze documentation coverage: which symbols have docs/examples,\nwhich documents have examples. Excludes re-exports from the denominator.",
@@ -102,9 +102,9 @@
     {
       "name": "DEFAULT_CONFIG",
       "file": "src/ir/types.ts",
-      "line": 291,
+      "line": 303,
       "declKind": "const",
-      "signature": "{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: \"auto\" | \"shallow\" | \"deep\" | undefined; coverage?: { minDocumented?: number; minExamples?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }",
+      "signature": "{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: \"auto\" | \"shallow\" | \"deep\" | undefined; coverage?: { minDocumented?: number; minExamples?: number; minExercised?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }",
       "description": null,
       "tags": null,
       "typeOnly": false
@@ -172,7 +172,7 @@
     {
       "name": "ExampleResult",
       "file": "src/ir/types.ts",
-      "line": 201,
+      "line": 203,
       "declKind": "interface",
       "signature": "ExampleResult",
       "description": null,
@@ -182,7 +182,7 @@
     {
       "name": "ExampleStatus",
       "file": "src/ir/types.ts",
-      "line": 187,
+      "line": 189,
       "declKind": "type",
       "signature": "\"pending\" | \"passed\" | \"failed\" | \"skipped\"",
       "description": null,
@@ -192,7 +192,7 @@
     {
       "name": "FailureInfo",
       "file": "src/ir/types.ts",
-      "line": 189,
+      "line": 191,
       "declKind": "interface",
       "signature": "FailureInfo",
       "description": null,
@@ -202,7 +202,7 @@
     {
       "name": "GeneratedTest",
       "file": "src/ir/types.ts",
-      "line": 176,
+      "line": 178,
       "declKind": "interface",
       "signature": "GeneratedTest",
       "description": null,
@@ -232,7 +232,7 @@
     {
       "name": "MetonymConfig",
       "file": "src/ir/types.ts",
-      "line": 256,
+      "line": 266,
       "declKind": "interface",
       "signature": "MetonymConfig",
       "description": null,
@@ -252,7 +252,7 @@
     {
       "name": "Project",
       "file": "src/ir/types.ts",
-      "line": 299,
+      "line": 311,
       "declKind": "interface",
       "signature": "Project",
       "description": null,
@@ -272,7 +272,7 @@
     {
       "name": "RenderedFile",
       "file": "src/ir/types.ts",
-      "line": 231,
+      "line": 241,
       "declKind": "interface",
       "signature": "RenderedFile",
       "description": null,
@@ -282,7 +282,7 @@
     {
       "name": "Renderer",
       "file": "src/ir/types.ts",
-      "line": 246,
+      "line": 256,
       "declKind": "interface",
       "signature": "Renderer<TOptions>",
       "description": null,
@@ -292,7 +292,7 @@
     {
       "name": "RenderOptions",
       "file": "src/ir/types.ts",
-      "line": 241,
+      "line": 251,
       "declKind": "interface",
       "signature": "RenderOptions",
       "description": null,
@@ -302,7 +302,7 @@
     {
       "name": "RenderResult",
       "file": "src/ir/types.ts",
-      "line": 237,
+      "line": 247,
       "declKind": "interface",
       "signature": "RenderResult",
       "description": null,
@@ -312,7 +312,7 @@
     {
       "name": "RunResult",
       "file": "src/ir/types.ts",
-      "line": 212,
+      "line": 214,
       "declKind": "interface",
       "signature": "RunResult",
       "description": null,
@@ -322,7 +322,7 @@
     {
       "name": "SidecarEntry",
       "file": "src/ir/types.ts",
-      "line": 159,
+      "line": 161,
       "declKind": "interface",
       "signature": "SidecarEntry",
       "description": "Line invariant: every example body line maps 1:1 into the generated file.\ndocLine = entry.docCodeStartLine + (genLine - entry.genCodeStartLine).\nImport statements are rewritten in place, one line each, preserving count.",
@@ -332,7 +332,7 @@
     {
       "name": "SidecarMap",
       "file": "src/ir/types.ts",
-      "line": 169,
+      "line": 171,
       "declKind": "interface",
       "signature": "SidecarMap",
       "description": null,
@@ -382,17 +382,17 @@
     {
       "name": "parseInfoString",
       "file": "src/parse/info.ts",
-      "line": 35,
+      "line": 77,
       "declKind": "function",
       "signature": "(info: string): InfoString",
-      "description": "Parse a fence info string into language, example kind, and attributes.",
+      "description": null,
       "tags": null,
       "typeOnly": false
     },
     {
       "name": "extractJsdoc",
       "file": "src/parse/jsdoc.ts",
-      "line": 46,
+      "line": 47,
       "declKind": "function",
       "signature": "(source: string, opts: { file: string; languages?: string[]; blocks?: JsdocBlock[]; lines?: string[]; lineOffsets?: number[]; }): ExtractJsdocResult",
       "description": null,
@@ -402,7 +402,7 @@
     {
       "name": "extractMarkdown",
       "file": "src/parse/markdown.ts",
-      "line": 35,
+      "line": 36,
       "declKind": "function",
       "signature": "(text: string, opts: { file: string; languages?: string[]; }): ExtractMarkdownResult",
       "description": "Extract fenced code examples from Markdown text, with precise source\nlocations. Pure — no execution.",
@@ -424,7 +424,7 @@
       "file": "src/run/run.ts",
       "line": 19,
       "declKind": "function",
-      "signature": "(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; }): Promise<RunResult>",
+      "signature": "(docs: DocumentationSet, opts?: { generated?: GeneratedTest[]; outDir?: string; bunPath?: string; }): Promise<RunResult>",
       "description": null,
       "tags": null,
       "typeOnly": false
@@ -434,7 +434,7 @@
       "file": "src/scan/scan.ts",
       "line": 13,
       "declKind": "function",
-      "signature": "(opts?: { root?: string; config?: Partial<MetonymConfig>; }): Promise<Project>",
+      "signature": "(opts?: { root?: string; config?: Partial<MetonymConfig>; noConfigFile?: boolean; }): Promise<Project>",
       "description": "Scan a project root for documentation and source files.\n\nUses Bun.Glob to enumerate include patterns, filters via exclude patterns,\nand classifies files into docFiles (.md/.markdown) and sourceFiles (.ts/.tsx/.js/.jsx/.mts/.cts/.mjs/.cjs).\nNever includes files under the configured outDir.\nReturns sorted lists (posix separators, repo-relative, no leading ./).",
       "tags": null,
       "typeOnly": false
