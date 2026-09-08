@@ -5,7 +5,7 @@
  */
 
 import { join } from "node:path";
-import { normalizeAbs, toProjectRelative } from "./paths";
+import { isWithin, normalizeAbs, toProjectRelative } from "./paths";
 
 export interface GitDiff {
   available: boolean;
@@ -39,16 +39,28 @@ function mapGitPaths(
   topLevel: string,
   lines: string[],
 ): string[] {
-  const normalizedTopLevel = normalizeAbs(topLevel);
   const mapped: string[] = [];
   for (const line of lines) {
     if (!line) continue;
     const abs = normalizeAbs(join(topLevel, line));
-    if (abs !== normalizedTopLevel && !abs.startsWith(`${normalizedTopLevel}/`))
-      continue;
+    if (!isWithin(topLevel, abs)) continue;
     mapped.push(toProjectRelative(root, abs));
   }
   return mapped;
+}
+
+/**
+ * Git repository top-level (absolute path) for `root`, or `undefined` when
+ * `root` isn't inside a git work tree. Cheap: two `rev-parse` calls, no
+ * diffing.
+ */
+export function gitTopLevel(root: string): string | undefined {
+  const isRepoResult = run(["rev-parse", "--is-inside-work-tree"], root);
+  if (isRepoResult.exitCode !== 0 || isRepoResult.stdout.trim() !== "true") {
+    return undefined;
+  }
+  const topLevelResult = run(["rev-parse", "--show-toplevel"], root);
+  return topLevelResult.exitCode === 0 ? topLevelResult.stdout.trim() : root;
 }
 
 /**
@@ -70,14 +82,10 @@ export function changedFiles(root: string, since?: string): GitDiff {
     throw new Error("--since/--changed ref must not start with '-'");
   }
 
-  const isRepoResult = run(["rev-parse", "--is-inside-work-tree"], root);
-  if (isRepoResult.exitCode !== 0 || isRepoResult.stdout.trim() !== "true") {
+  const topLevel = gitTopLevel(root);
+  if (topLevel === undefined) {
     return { available: false, changedFiles: [], baseResolved: false };
   }
-
-  const topLevelResult = run(["rev-parse", "--show-toplevel"], root);
-  const topLevel =
-    topLevelResult.exitCode === 0 ? topLevelResult.stdout.trim() : root;
 
   let base: string | undefined;
   let baseResolved = false;
