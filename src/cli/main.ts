@@ -66,6 +66,7 @@ const KNOWN_FLAGS = new Set([
   "no-config",
   "timeout",
   "bail",
+  "no-color",
 ]);
 
 // `--changed` and `--bail` deliberately excluded: they keep their optional
@@ -218,6 +219,7 @@ Flags:
   --watch                             re-run on file changes (check only)
   --run                               build: execute examples to annotate statuses
   --no-config                         ignore metonym.config.ts (package.json#metonym still applies)
+  --no-color                          disable colored output (also respects NO_COLOR/FORCE_COLOR)
   --help, --version
 `;
 

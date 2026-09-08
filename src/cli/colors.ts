@@ -7,13 +7,23 @@
  * the bright variants (91/93) — getting the classic codes back requires
  * passing names like "darkred"/"olive", which isn't worth the indirection
  * for a fixed three-color palette.
+ *
+ * `c` is built once at import time, so `--no-color` is read straight off
+ * `process.argv` here rather than through the parsed `Args` (which isn't
+ * available yet at this point in module evaluation).
  */
-const isTTY = process.stderr.isTTY === true;
+const noColorFlag = process.argv.includes("--no-color");
+
+const enabled =
+  !noColorFlag &&
+  process.env.NO_COLOR === undefined &&
+  ((process.env.FORCE_COLOR !== undefined && process.env.FORCE_COLOR !== "0") ||
+    process.stderr.isTTY === true);
 
 const paint =
   (code: number) =>
   (s: string): string =>
-    isTTY ? `\x1b[${code}m${s}\x1b[0m` : s;
+    enabled ? `\x1b[${code}m${s}\x1b[0m` : s;
 
 export const c = {
   green: paint(32),

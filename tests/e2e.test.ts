@@ -156,6 +156,29 @@ describe("e2e fixture project", () => {
     expect(stdout).toContain("::error file=");
   });
 
+  test("NO_COLOR disables ANSI escapes in stderr output", () => {
+    const { stderr } = runCli(["check", `--root=${root}`], undefined, {
+      NO_COLOR: "1",
+    });
+    expect(stderr).not.toContain("\x1b[");
+  });
+
+  test("FORCE_COLOR enables ANSI escapes even though stderr is piped, not a TTY", () => {
+    const { stderr } = runCli(["check", `--root=${root}`], undefined, {
+      FORCE_COLOR: "1",
+    });
+    expect(stderr).toContain("\x1b[");
+  });
+
+  test("--no-color wins over FORCE_COLOR", () => {
+    const { stderr } = runCli(
+      ["check", `--root=${root}`, "--no-color"],
+      undefined,
+      { FORCE_COLOR: "1" },
+    );
+    expect(stderr).not.toContain("\x1b[");
+  });
+
   test("--reporter=junit writes JUnit XML to stdout", () => {
     const { exitCode, stdout } = runCli([
       "check",

@@ -466,6 +466,7 @@ These apply across commands wherever they're relevant:
 | `--analysis=auto\|shallow\|deep` | Symbol analysis depth; `deep` requires `typescript` resolvable from the project root |
 | `--full` | Bypass caches, run/analyze everything from scratch |
 | `--no-config` | Ignore `metonym.config.ts` (`package.json#metonym` still applies) |
+| `--no-color` | Disable colored output. `NO_COLOR` (set) also disables it; `FORCE_COLOR` (set, not `0`) enables it even when stderr isn't a TTY; `--no-color` wins over both |
 | `--help`, `--version` | Print usage / version and exit `0`, from any position |
 
 Deleting `.metonym/` is always safe.
