@@ -5,6 +5,7 @@
 import type { DocumentationSet } from "../ir/types";
 import { getTranspiler, loaderFromPath } from "../parse/transpiler";
 import type { GraphEdge, GraphNode } from "./emit";
+import { resolveInternal } from "./paths";
 import { exampleEntryFiles } from "./queries";
 
 interface ImpactTrace {
@@ -47,10 +48,6 @@ export async function computeImpact(
   const traces: ImpactTrace[] = [];
   const changedSet = new Set(changedFiles);
 
-  // macOS /private prefix
-  const normalizePath = (p: string) => p.replace(/^\/private/, "");
-  const normalizedRoot = normalizePath(docs.root);
-
   async function getImportsForFile(file: string): Promise<string[]> {
     const fullPath = `${docs.root}/${file}`;
     let text: string;
@@ -71,16 +68,12 @@ export async function computeImpact(
     const fileDir = file.substring(0, file.lastIndexOf("/") + 1) || "./";
 
     for (const imp of imports) {
-      try {
-        const absPath = Bun.resolveSync(imp.path, `${docs.root}/${fileDir}`);
-        const normalized = normalizePath(absPath);
-
-        if (!normalized.startsWith(normalizedRoot)) continue;
-        if (normalized.includes("/node_modules/")) continue;
-
-        const relPath = normalized.slice(normalizedRoot.length + 1);
-        resolved.add(relPath);
-      } catch {}
+      const relPath = resolveInternal(
+        docs.root,
+        imp.path,
+        `${docs.root}/${fileDir}`,
+      );
+      if (relPath !== null) resolved.add(relPath);
     }
 
     return Array.from(resolved);

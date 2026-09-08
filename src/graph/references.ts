@@ -5,6 +5,7 @@
 
 import type { DocumentationSet, Relation, SymbolInfo } from "../ir/types";
 import { parseImportBindings } from "../parse/imports";
+import { resolveInternal } from "./paths";
 
 /**
  * Analyze all examples and emit reference relations for used symbols.
@@ -20,26 +21,12 @@ export function exampleReferences(docs: DocumentationSet): Relation[] {
   const relations: Relation[] = [];
   const seen = new Set<string>();
 
-  // macOS /private prefix
-  const normalizePath = (p: string) => p.replace(/^\/private/, "");
-  const normalizedRoot = normalizePath(docs.root);
-
   for (const example of docs.examples) {
     const bindings = parseImportBindings(example.code);
 
     for (const binding of bindings) {
-      let resolvedPath: string;
-      try {
-        const absPath = Bun.resolveSync(binding.specifier, docs.root);
-        resolvedPath = normalizePath(absPath);
-      } catch {
-        continue;
-      }
-
-      if (!resolvedPath.startsWith(normalizedRoot)) continue;
-      if (resolvedPath.includes("/node_modules/")) continue;
-
-      const relPath = resolvedPath.slice(normalizedRoot.length + 1);
+      const relPath = resolveInternal(docs.root, binding.specifier, docs.root);
+      if (relPath === null) continue;
 
       let targetSymbol: SymbolInfo | undefined;
 
@@ -68,23 +55,19 @@ export function exampleReferences(docs: DocumentationSet): Relation[] {
         if (namespaceExport?.reexportFrom) {
           const fileDir =
             relPath.substring(0, relPath.lastIndexOf("/") + 1) || "./";
-          const reexportAbsPath = `${normalizedRoot}/${fileDir}`;
+          const reexportAbsPath = `${docs.root}/${fileDir}`;
 
-          try {
-            const hopped = Bun.resolveSync(
-              namespaceExport.reexportFrom,
-              reexportAbsPath,
+          const hoppedRelPath = resolveInternal(
+            docs.root,
+            namespaceExport.reexportFrom,
+            reexportAbsPath,
+          );
+
+          if (hoppedRelPath !== null) {
+            targetSymbol = docs.symbols.find(
+              (s) => s.file === hoppedRelPath && s.name === binding.imported,
             );
-            const hoppedPath = normalizePath(hopped);
-
-            if (hoppedPath.startsWith(normalizedRoot)) {
-              const hoppedRelPath = hoppedPath.slice(normalizedRoot.length + 1);
-
-              targetSymbol = docs.symbols.find(
-                (s) => s.file === hoppedRelPath && s.name === binding.imported,
-              );
-            }
-          } catch {}
+          }
         }
       }
 
@@ -112,38 +95,31 @@ export function exampleReferences(docs: DocumentationSet): Relation[] {
             0,
             targetSymbol.file.lastIndexOf("/") + 1,
           ) || "./";
-        const targetAbsPath = `${normalizedRoot}/${targetFileDir}`;
+        const targetAbsPath = `${docs.root}/${targetFileDir}`;
 
-        try {
-          const underlyingPath = Bun.resolveSync(
-            targetSymbol.reexportFrom,
-            targetAbsPath,
+        const underlyingRelPath = resolveInternal(
+          docs.root,
+          targetSymbol.reexportFrom,
+          targetAbsPath,
+        );
+
+        if (underlyingRelPath !== null) {
+          const underlyingSymbol = docs.symbols.find(
+            (s) => s.file === underlyingRelPath && s.name === binding.imported,
           );
-          const underlyingNormalized = normalizePath(underlyingPath);
 
-          if (underlyingNormalized.startsWith(normalizedRoot)) {
-            const underlyingRelPath = underlyingNormalized.slice(
-              normalizedRoot.length + 1,
-            );
-
-            const underlyingSymbol = docs.symbols.find(
-              (s) =>
-                s.file === underlyingRelPath && s.name === binding.imported,
-            );
-
-            if (underlyingSymbol) {
-              const underlyingKey = `${example.id}:${underlyingSymbol.id}`;
-              if (!seen.has(underlyingKey)) {
-                seen.add(underlyingKey);
-                relations.push({
-                  kind: "references",
-                  from: example.id,
-                  to: underlyingSymbol.id,
-                });
-              }
+          if (underlyingSymbol) {
+            const underlyingKey = `${example.id}:${underlyingSymbol.id}`;
+            if (!seen.has(underlyingKey)) {
+              seen.add(underlyingKey);
+              relations.push({
+                kind: "references",
+                from: example.id,
+                to: underlyingSymbol.id,
+              });
             }
           }
-        } catch {}
+        }
       }
     }
   }
