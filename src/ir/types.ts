@@ -206,6 +206,8 @@ export interface ExampleResult {
   exampleId: string;
   title: string;
   docFile: string;
+  /** 1-indexed line where the example's code begins in `docFile`. */
+  docLine?: number;
   status: ExampleStatus;
   durationMs: number;
   failure?: FailureInfo;

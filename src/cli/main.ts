@@ -148,9 +148,14 @@ function parseArgs(argv: string[]): Args {
   }
 
   const reporter = flags.get("reporter");
-  if (reporter !== undefined && reporter !== "pretty" && reporter !== "json") {
+  if (
+    reporter !== undefined &&
+    reporter !== "pretty" &&
+    reporter !== "json" &&
+    reporter !== "github"
+  ) {
     throw new UsageError(
-      `invalid --reporter=${String(reporter)} (allowed: pretty, json)`,
+      `invalid --reporter=${String(reporter)} (allowed: pretty, json, github)`,
     );
   }
   const analysis = flags.get("analysis");
@@ -200,7 +205,8 @@ Flags:
   --only=<id|file:line>               run only these examples (repeatable)
   --list                              print selected examples, don't run them
   --failed                            run only examples that failed last run
-  --reporter=pretty|json              check output format (default pretty)
+  --reporter=pretty|json|github      check output format (default pretty;
+                                      github auto-selected under GITHUB_ACTIONS)
   --root=<dir>                        project root (default cwd)
   --analysis=auto|shallow|deep        symbol analysis depth (deep needs typescript)
   --full                              bypass caches, run everything
@@ -482,8 +488,16 @@ async function checkOnce(
     bail: bailFlag(args),
     signal,
   });
-  if (args.flags.get("reporter") === "json") {
+  // Explicit --reporter=pretty opts out of the GitHub Actions auto-select.
+  const reporter =
+    strFlag(args.flags, "reporter") ??
+    (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
+  if (reporter === "json") {
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else if (reporter === "github") {
+    const { reportGithub } = await import("./reporters/github");
+    reportGithub(result);
+    await reportPretty(result, project.root);
   } else {
     await reportPretty(result, project.root);
   }

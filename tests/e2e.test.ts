@@ -11,11 +11,16 @@ import { join } from "node:path";
 const REPO = join(import.meta.dir, "..");
 const CLI = join(REPO, "src/cli/main.ts");
 
-function runCli(args: string[], cwd?: string) {
+function runCli(
+  args: string[],
+  cwd?: string,
+  env?: Record<string, string | undefined>,
+) {
   const proc = Bun.spawnSync([process.execPath, CLI, ...args], {
     cwd: cwd ?? REPO,
     stdout: "pipe",
     stderr: "pipe",
+    env: env ? { ...process.env, ...env } : process.env,
   });
   return {
     exitCode: proc.exitCode,
@@ -137,6 +142,18 @@ describe("e2e fixture project", () => {
     } finally {
       await rm(freshRoot, { recursive: true, force: true });
     }
+  });
+
+  test("GITHUB_ACTIONS=true auto-selects the github reporter", () => {
+    const { exitCode, stdout } = runCli(
+      ["check", `--root=${root}`],
+      undefined,
+      {
+        GITHUB_ACTIONS: "true",
+      },
+    );
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain("::error file=");
   });
 
   test("check --filter narrows to matching examples and exits 0", () => {

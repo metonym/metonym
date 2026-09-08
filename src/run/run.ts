@@ -214,6 +214,7 @@ export async function run(
             exampleId: entry.exampleId,
             title: entry.title,
             docFile: entry.docFile,
+            docLine: entry.docCodeStartLine,
             status: mapStatus(junitCase.status),
             durationMs: junitCase.timeSec * 1000,
           };
@@ -261,6 +262,7 @@ export async function run(
                 exampleId: groupEntry.exampleId,
                 title: groupEntry.title,
                 docFile: groupEntry.docFile,
+                docLine: groupEntry.docCodeStartLine,
                 status: mapStatus(junitCase.status),
                 durationMs: junitCase.timeSec * 1000,
               };
@@ -281,6 +283,7 @@ export async function run(
         exampleId: entry.exampleId,
         title: entry.title,
         docFile: entry.docFile,
+        docLine: entry.docCodeStartLine,
         status: "skipped",
         durationMs: 0,
       });
@@ -430,6 +433,7 @@ function buildExampleResult(
     exampleId: entry.exampleId,
     title: entry.title,
     docFile: entry.docFile,
+    docLine: entry.docCodeStartLine,
     status: mapStatus(junitCase.status),
     durationMs: junitCase.timeSec * 1000,
   };
