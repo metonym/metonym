@@ -20,8 +20,12 @@ export interface Selection {
  * Strategy:
  * 1. Check git availability and collect changes
  * 2. If git unavailable → mode "all" with note
- * 3. If no changes → mode "affected" with empty filtered docs and note
- * 4. Otherwise → mode "affected" with filtered docs containing only affected examples
+ * 3. If no base ref could be determined and there are no changes (e.g. no
+ *    origin/* and no --since) → mode "all" with note: the empty diff is
+ *    ambiguous (no base to diff against), not evidence of "no changes"
+ * 4. If a base was resolved and there are no changes → mode "affected"
+ *    with empty filtered docs and an explicit note naming the base
+ * 5. Otherwise → mode "affected" with filtered docs containing only affected examples
  */
 export async function selectAffected(
   docs: DocumentationSet,
@@ -39,6 +43,15 @@ export async function selectAffected(
   }
 
   if (git.changedFiles.length === 0) {
+    if (!git.baseResolved) {
+      return {
+        docs,
+        mode: "all",
+        reasons: new Map(),
+        note: "could not determine a git base ref — running all examples (pass --changed=<ref>)",
+      };
+    }
+
     const emptyDocs: DocumentationSet = {
       ...docs,
       examples: [],
@@ -48,7 +61,7 @@ export async function selectAffected(
       docs: emptyDocs,
       mode: "affected",
       reasons: new Map(),
-      note: "no changes detected",
+      note: `no changes since ${git.base} — 0 examples selected`,
     };
   }
 
