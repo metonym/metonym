@@ -224,6 +224,60 @@ describe("html renderer", () => {
       cleanupDir(tmpDir);
     }
   });
+
+  test("tags a failed example's status blockquote with data-metonym", async () => {
+    const tmpDir = await createFixture();
+
+    try {
+      const project = await scan({ root: tmpDir });
+      const docs = await extract(project);
+      const exampleIds = docs.examples.map((e) => e.id);
+      const runResult: RunResult = {
+        results: [
+          {
+            exampleId: exampleIds[0],
+            title: "Test › example 1",
+            docFile: "README.md",
+            status: "failed",
+            durationMs: 5,
+            failure: {
+              message: "expect(received).toBe(expected)",
+              expected: "4",
+              received: "5",
+              generated: { file: ".metonym/tests/README.test.ts" },
+            },
+          },
+          {
+            exampleId: exampleIds[1],
+            title: "Advanced › example 1",
+            docFile: "README.md",
+            status: "pending",
+            durationMs: 0,
+          },
+        ],
+        totals: {
+          total: 2,
+          passed: 0,
+          failed: 1,
+          pending: 1,
+          skipped: 0,
+          durationMs: 5,
+        },
+        outDir: ".metonym/tests",
+        exitCode: 1,
+      };
+
+      const result = await renderers.html.render(docs, { results: runResult });
+      const content = result.files.find(
+        (f) => f.path === "README.md.html",
+      )?.contents;
+
+      expect(content).toContain('data-metonym="failed"');
+      expect(content).toContain('data-metonym="pending"');
+    } finally {
+      cleanupDir(tmpDir);
+    }
+  });
 });
 
 describe("json renderer", () => {
