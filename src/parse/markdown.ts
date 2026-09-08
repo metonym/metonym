@@ -6,11 +6,12 @@ import { createExampleIdAllocator, documentId } from "../ir/ids";
 import type { Document, Example } from "../ir/types";
 import { DEFAULT_CONFIG } from "../ir/types";
 import { type Fence, lineOffsetsOf, scanFencesFromLines } from "./fence";
-import { isExecutableLang, parseInfoString } from "./info";
+import { infoStringWarnings, isExecutableLang, parseInfoString } from "./info";
 
 export interface ExtractMarkdownResult {
   document: Document;
   examples: Example[];
+  warnings: string[];
 }
 
 interface Heading {
@@ -68,12 +69,14 @@ export function extractMarkdown(
   };
 
   const examples: Example[] = [];
+  const warnings: string[] = [];
   const allocator = createExampleIdAllocator(file);
 
   const headingScopes = new Map<number, number>();
 
   for (const fence of fences) {
     const info = parseInfoString(fence.info);
+    warnings.push(...infoStringWarnings(file, fence.startLine, info));
     if (!isExecutableLang(info.lang, languages) || info.kind === "ignored") {
       continue;
     }
@@ -151,7 +154,7 @@ export function extractMarkdown(
     document.exampleIds.push(example.id);
   }
 
-  return { document, examples };
+  return { document, examples, warnings };
 }
 
 function extractHeadings(lines: string[], fences: Fence[]): Heading[] {

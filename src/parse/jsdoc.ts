@@ -7,11 +7,12 @@ import type { Document, Example } from "../ir/types";
 import { DEFAULT_CONFIG } from "../ir/types";
 import { isWhitespaceCode } from "./chars";
 import { lineOffsetsOf, scanFences } from "./fence";
-import { isExecutableLang, parseInfoString } from "./info";
+import { infoStringWarnings, isExecutableLang, parseInfoString } from "./info";
 
 export interface ExtractJsdocResult {
   document: Document | null;
   examples: Example[];
+  warnings: string[];
 }
 
 export interface DocComment {
@@ -61,6 +62,7 @@ export function extractJsdoc(
   const blocks = opts.blocks ?? extractJsdocBlocksFromLines(lines);
 
   const examples: Example[] = [];
+  const warnings: string[] = [];
   const allocator = createExampleIdAllocator(file);
   const docId = documentId(file);
   const documentExampleIds: string[] = [];
@@ -96,6 +98,8 @@ export function extractJsdoc(
       if (fences.length > 0) {
         for (const fence of fences) {
           const info = parseInfoString(fence.info);
+          const realFenceLine = section.startLine + fence.startLine - 1;
+          warnings.push(...infoStringWarnings(file, realFenceLine, info));
           if (
             !isExecutableLang(info.lang, languages) ||
             info.kind === "ignored"
@@ -228,7 +232,7 @@ export function extractJsdoc(
       }
     : null;
 
-  return { document, examples };
+  return { document, examples, warnings };
 }
 
 export function extractJsdocBlocks(
