@@ -172,8 +172,6 @@ const KNOWN_CONFIG_KEYS = [
   "root",
 ] as const;
 
-// `minExercised` isn't implemented here yet (a sibling PR adds it); listing
-// it as known keeps this PR from rejecting it as a typo once that PR lands.
 const KNOWN_COVERAGE_KEYS = [
   "minDocumented",
   "minExamples",
@@ -362,6 +360,19 @@ function validateConfig(config: Partial<MetonymConfig>): void {
       if (coverage.minExamples < 0 || coverage.minExamples > 100) {
         throw new Error(
           `Invalid metonym config: "coverage.minExamples" must be between 0 and 100, got ${coverage.minExamples}`,
+        );
+      }
+    }
+
+    if (coverage.minExercised !== undefined) {
+      if (typeof coverage.minExercised !== "number") {
+        throw new Error(
+          `Invalid metonym config: "coverage.minExercised" must be a number, got ${typeof coverage.minExercised}`,
+        );
+      }
+      if (coverage.minExercised < 0 || coverage.minExercised > 100) {
+        throw new Error(
+          `Invalid metonym config: "coverage.minExercised" must be between 0 and 100, got ${coverage.minExercised}`,
         );
       }
     }

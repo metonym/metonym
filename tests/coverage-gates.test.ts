@@ -394,6 +394,80 @@ test("checkCoverage(): fail minExamples gate", () => {
   expect(result.failures[0]).toContain("80");
 });
 
+function makeMinExercisedFixture(): DocumentationSet {
+  return {
+    irVersion: 1,
+    tool: { name: "metonym", version: "0.1.0" },
+    root: "/tmp/test",
+    documents: [],
+    examples: [
+      {
+        id: "ex:README.md:1",
+        documentId: "doc:README.md",
+        source: {
+          file: "README.md",
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        fenceSource: {
+          file: "README.md",
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        language: "ts",
+        code: 'import { add } from "pkg"\nexpect(add(2, 3)).toBe(5)',
+        kind: "assertion",
+        title: "example 1",
+      },
+    ],
+    symbols: ["add", "multiply", "divide", "subtract", "power"].map((name) => ({
+      id: `sym:src/index.ts:${name}`,
+      file: "src/index.ts",
+      name,
+      imports: [],
+      declKind: "function" as const,
+    })),
+    relations: [
+      {
+        kind: "references",
+        from: "ex:README.md:1",
+        to: "sym:src/index.ts:add",
+      },
+    ],
+  };
+}
+
+test("checkCoverage(): fail minExercised gate", () => {
+  const result = checkCoverage(makeMinExercisedFixture(), {
+    minExercised: 80, // only 20% (1/5)
+  });
+
+  expect(result.pass).toBe(false);
+  expect(result.failures.length).toBeGreaterThanOrEqual(1);
+  expect(result.failures[0]).toContain("exercised");
+  expect(result.failures[0]).toContain("20");
+  expect(result.failures[0]).toContain("80");
+});
+
+test("checkCoverage(): pass minExercised gate at threshold", () => {
+  const result = checkCoverage(makeMinExercisedFixture(), {
+    minExercised: 20, // exactly 20% (1/5)
+  });
+
+  expect(result.pass).toBe(true);
+  expect(result.failures.length).toBe(0);
+});
+
+test("checkCoverage(): with a precomputed report gives the same answer as without one", () => {
+  const docs = makeMinExercisedFixture();
+  const gates = { minExercised: 80 };
+
+  const withoutReport = checkCoverage(docs, gates);
+  const withReport = checkCoverage(docs, gates, coverage(docs));
+
+  expect(withReport).toEqual(withoutReport);
+});
+
 test("checkCoverage(): fail failOnUndocumented gate", () => {
   const docs: DocumentationSet = {
     irVersion: 1,
@@ -761,6 +835,101 @@ test("loadConfig(): rejects invalid minExamples (non-number)", async () => {
       expect(String(e)).toContain("minExamples");
     }
     expect(thrown).toBe(true);
+  } finally {
+    if (tmpDir) {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("loadConfig(): rejects invalid minExercised (non-number)", async () => {
+  let tmpDir: string | undefined;
+  try {
+    tmpDir = await mkdtemp(join(tmpdir(), "config-test-"));
+
+    const packageJsonPath = join(tmpDir, "package.json");
+    await Bun.write(
+      packageJsonPath,
+      JSON.stringify({
+        name: "test-pkg",
+        metonym: {
+          coverage: {
+            minExercised: "lots",
+          },
+        },
+      }),
+    );
+
+    let thrown = false;
+    try {
+      await loadConfig(tmpDir);
+    } catch (e) {
+      thrown = true;
+      expect(String(e)).toContain("minExercised");
+    }
+    expect(thrown).toBe(true);
+  } finally {
+    if (tmpDir) {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("loadConfig(): rejects minExercised out of range", async () => {
+  let tmpDir: string | undefined;
+  try {
+    tmpDir = await mkdtemp(join(tmpdir(), "config-test-"));
+
+    const packageJsonPath = join(tmpDir, "package.json");
+    await Bun.write(
+      packageJsonPath,
+      JSON.stringify({
+        name: "test-pkg",
+        metonym: {
+          coverage: {
+            minExercised: 150,
+          },
+        },
+      }),
+    );
+
+    let thrown = false;
+    try {
+      await loadConfig(tmpDir);
+    } catch (e) {
+      thrown = true;
+      expect(String(e)).toContain("minExercised");
+      expect(String(e)).toContain("0 and 100");
+    }
+    expect(thrown).toBe(true);
+  } finally {
+    if (tmpDir) {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("loadConfig(): minExercised survives round-trip", async () => {
+  let tmpDir: string | undefined;
+  try {
+    tmpDir = await mkdtemp(join(tmpdir(), "config-test-"));
+
+    const packageJsonPath = join(tmpDir, "package.json");
+    await Bun.write(
+      packageJsonPath,
+      JSON.stringify({
+        name: "test-pkg",
+        metonym: {
+          coverage: {
+            minExercised: 40,
+          },
+        },
+      }),
+    );
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.coverage?.minExercised).toBe(40);
   } finally {
     if (tmpDir) {
       await rm(tmpDir, { recursive: true, force: true });

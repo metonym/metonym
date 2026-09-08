@@ -291,6 +291,8 @@ export interface MetonymConfig {
     minDocumented?: number;
     /** Minimum % of exported symbols with executable examples (0-100). */
     minExamples?: number;
+    /** Minimum % of exported symbols referenced by an executable example (0-100). */
+    minExercised?: number;
     /** Fail when any export lacks documentation entirely. */
     failOnUndocumented?: boolean;
     /** Fail when any example has a type error, deep analysis only. */
