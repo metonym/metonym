@@ -260,26 +260,61 @@ describe("graph emit", () => {
         ) {
           continue;
         }
-        const beforeBracket = line.split(/[[(/]/, 1)[0];
+        const beforeBracket = line.split(/[[({]/, 1)[0];
         expect(beforeBracket).not.toContain(":");
         expect(beforeBracket).not.toContain(".");
       }
     });
 
-    it("escapes double quotes in labels", () => {
+    it("escapes double quotes in labels using Mermaid entity syntax", () => {
       const mermaid = toMermaid(testDocs);
-      expect(mermaid).toContain('\\"');
+      expect(mermaid).toContain("#quot;");
+      expect(mermaid).not.toContain('\\"');
     });
 
-    it("includes module nodes with folder-like syntax", () => {
+    it("includes module nodes with hexagon syntax", () => {
       const mermaid = toMermaid(testDocs);
-      expect(mermaid).toContain("[/");
+      expect(mermaid).toContain("{{");
+    });
+
+    it("quotes every label inside its shape", () => {
+      const mermaid = toMermaid(testDocs);
+      const lines = mermaid.trim().split("\n").slice(1);
+      for (const line of lines) {
+        if (line.includes("-->")) continue;
+        expect(line).toMatch(/\["|\(\["|\[\["|\{\{"/);
+      }
     });
 
     it("is deterministic", () => {
       const mermaid1 = toMermaid(testDocs);
       const mermaid2 = toMermaid(testDocs);
       expect(mermaid1).toEqual(mermaid2);
+    });
+
+    it("quotes labels containing (, ), [, ] so they don't break the flowchart", () => {
+      const docsWithSpecialChars: DocumentationSet = {
+        ...testDocs,
+        documents: [
+          {
+            id: "doc:special.md",
+            file: "Fn(a, b) [beta]",
+            origin: "readme",
+            exampleIds: [],
+          },
+        ],
+        examples: [],
+        symbols: [],
+        relations: [],
+      };
+      const mermaid = toMermaid(docsWithSpecialChars);
+      expect(mermaid).toContain('["Fn(a, b) [beta]"]');
+
+      // The label's own brackets must only ever appear inside the quoted
+      // span, never as bare, unquoted bracket sequences elsewhere.
+      const withoutQuotedSpans = mermaid.replace(/"[^"]*"/g, "");
+      expect(withoutQuotedSpans).not.toContain("(a, b)");
+      expect(withoutQuotedSpans).not.toContain("[beta]");
     });
   });
 

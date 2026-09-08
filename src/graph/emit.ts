@@ -175,8 +175,12 @@ export function serializeMermaid({
     return finalId;
   };
 
+  // Mermaid entity syntax: `"` can't appear literally inside a quoted label,
+  // so it's escaped as `#quot;`. Every label is quoted (not just ones that
+  // happen to contain `"`), since unquoted labels containing shape-delimiter
+  // characters like `(`, `)`, `[`, `]` break the flowchart syntax.
   const escapeLabel = (label: string): string => {
-    return label.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return `"${label.replace(/"/g, "#quot;")}"`;
   };
 
   const nodeLines: string[] = [];
@@ -190,13 +194,13 @@ export function serializeMermaid({
         shape = `[[${escapedLabel}]]`;
         break;
       case "example":
-        shape = `(${escapedLabel})`;
+        shape = `([${escapedLabel}])`;
         break;
       case "symbol":
         shape = `[${escapedLabel}]`;
         break;
       case "module":
-        shape = `[/${escapedLabel}\\]`;
+        shape = `{{${escapedLabel}}}`;
         break;
     }
 
