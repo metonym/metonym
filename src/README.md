@@ -426,8 +426,9 @@ fails, `0` otherwise:
 
 | Gate | Meaning |
 | --- | --- |
-| `minDocumented` | Minimum % of exports with a JSDoc `@example` |
+| `minDocumented` | Minimum % of exports with documentation (JSDoc, or referenced by any example) |
 | `minExamples` | Minimum % of exports with an executable (non-`no-run`) example |
+| `minExercised` | Minimum % of exports referenced by an executable example |
 | `failOnUndocumented` | Fail if any export has zero documentation |
 | `failOnTypeErrors` | Fail if any example has a type error (deep analysis only) |
 

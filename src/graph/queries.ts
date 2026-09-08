@@ -343,16 +343,20 @@ export interface CoverageGateResult {
  * Rules:
  * - minDocumented: percentage of symbols with documentation (documented/total*100)
  * - minExamples: percentage of symbols with executable examples (withExamples/total*100)
+ * - minExercised: percentage of symbols referenced by an executable example (exercised/total*100)
  * - failOnUndocumented: fail if any export lacks documentation entirely
  * - failOnTypeErrors: fail if any example has a type error (deep analysis only)
  *
- * When total symbols is 0, both percentage gates pass.
+ * When total symbols is 0, all percentage gates pass.
+ *
+ * Pass a precomputed `report` (e.g. one already rendered to the user) to
+ * avoid recomputing `coverage(docs)`.
  */
 export function checkCoverage(
   docs: DocumentationSet,
   gates: NonNullable<MetonymConfig["coverage"]>,
+  report: CoverageReport = coverage(docs),
 ): CoverageGateResult {
-  const report = coverage(docs);
   const failures: string[] = [];
 
   const total = report.symbols.total;
@@ -361,6 +365,8 @@ export function checkCoverage(
     total > 0 ? (report.symbols.documented / total) * 100 : 100;
   const examplesPct =
     total > 0 ? (report.symbols.withExamples / total) * 100 : 100;
+  const exercisedPct =
+    total > 0 ? (report.symbols.exercised / total) * 100 : 100;
 
   if (gates.minDocumented !== undefined) {
     if (documentedPct < gates.minDocumented) {
@@ -374,6 +380,14 @@ export function checkCoverage(
     if (examplesPct < gates.minExamples) {
       failures.push(
         `examples ${Math.round(examplesPct * 10) / 10}% < required ${gates.minExamples}%`,
+      );
+    }
+  }
+
+  if (gates.minExercised !== undefined) {
+    if (exercisedPct < gates.minExercised) {
+      failures.push(
+        `exercised ${Math.round(exercisedPct * 10) / 10}% < required ${gates.minExercised}%`,
       );
     }
   }
