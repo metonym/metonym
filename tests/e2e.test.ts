@@ -139,6 +139,38 @@ describe("e2e fixture project", () => {
     expect(stderr).toContain("no example matches --only=README.md:999");
   });
 
+  test("check --list prints one line per example and generates/runs nothing", async () => {
+    const outDirRel = "list-check-out";
+    const outDir = join(root, outDirRel);
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      `--out-dir=${outDirRel}`,
+      "--list",
+    ]);
+    expect(exitCode).toBe(0);
+    const lines = stdout.trim().split("\n");
+    expect(lines.length).toBe(4);
+    expect(await Bun.file(outDir).exists()).toBe(false);
+  });
+
+  test("check --list --reporter=json prints the tool and example metadata", () => {
+    const { exitCode, stdout } = runCli([
+      "check",
+      `--root=${root}`,
+      "--list",
+      "--reporter=json",
+    ]);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed.tool).toEqual({ name: "metonym", version: "0.1.0" });
+    expect(parsed.examples.length).toBe(4);
+    expect(parsed.examples[0]).toMatchObject({
+      docFile: "README.md",
+      title: expect.stringContaining("Quick start"),
+    });
+  });
+
   test("extract --format=json emits the IR without executing", () => {
     const { exitCode, stdout } = runCli([
       "extract",
