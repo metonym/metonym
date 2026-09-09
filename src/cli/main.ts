@@ -73,6 +73,7 @@ const KNOWN_FLAGS = new Set([
   "bail",
   "no-color",
   "workspaces",
+  "allow-run",
 ]);
 
 // `--changed` and `--bail` deliberately excluded: they keep their optional
@@ -205,6 +206,8 @@ Usage:
   metonym coverage [--check]          coverage report (--check: enforce config gates)
   metonym impact [files…]             trace which examples a change affects
                                       (files from args or git; --format=text|json|mermaid|dot)
+  metonym mcp [--allow-run]           run an MCP server over stdio for agents
+                                      (--allow-run: enable the metonym_check tool)
 
 Flags:
   --format=<fmt>                      extract/build output format
@@ -227,6 +230,7 @@ Flags:
   --run                               build: execute examples to annotate statuses
   --no-config                         ignore metonym.config.ts (package.json#metonym still applies)
   --no-color                          disable colored output (also respects NO_COLOR/FORCE_COLOR)
+  --allow-run                         mcp: register the metonym_check tool (executes documentation code)
   --help, --version
 `;
 
@@ -897,6 +901,12 @@ async function run(): Promise<number> {
           format === "mermaid" ? serializeMermaid(g) : serializeDot(g),
         );
       }
+      return 0;
+    }
+
+    case "mcp": {
+      const { runMcpServer } = await import("../mcp/server");
+      await runMcpServer({ allowRun: args.flags.has("allow-run") });
       return 0;
     }
 
