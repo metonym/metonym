@@ -18,7 +18,7 @@ Enables TypeScript intellisense and validation without runtime overhead.
 
 ### `generate`
 
-[src/emit/generate.ts:555](../src/emit/generate.ts#L555)
+[src/emit/generate.ts:562](../src/emit/generate.ts#L562)
 
 `(docs: DocumentationSet, opts?: { jsxImportSource?: string; inject?: boolean; }): GeneratedTest[]`
 
@@ -103,19 +103,19 @@ and call it for each example in document order.
 
 ### `DeclKind`
 
-[src/ir/types.ts:101](../src/ir/types.ts#L101)
+[src/ir/types.ts:103](../src/ir/types.ts#L103)
 
 `"function" | "class" | "const" | "let" | "var" | "enum" | "type" | "interface" | "default" | "reexport" | "unknown"`
 
 ### `DEFAULT_CONFIG`
 
-[src/ir/types.ts:307](../src/ir/types.ts#L307)
+[src/ir/types.ts:309](../src/ir/types.ts#L309)
 
 `{ include: string[]; exclude: string[]; outDir: string; languages: string[]; inject: boolean; jsxImportSource?: string | undefined; analysis?: "auto" | "shallow" | "deep" | undefined; coverage?: { minDocumented?: number; minExamples?: number; minExercised?: number; failOnUndocumented?: boolean; failOnTypeErrors?: boolean; } | undefined; }`
 
 ### `Diagnostic`
 
-[src/ir/types.ts:90](../src/ir/types.ts#L90)
+[src/ir/types.ts:92](../src/ir/types.ts#L92)
 
 `Diagnostic`
 
@@ -130,7 +130,7 @@ Positions are relative to `example.code`, same convention as HoverInfo.
 
 ### `DocumentationSet`
 
-[src/ir/types.ts:141](../src/ir/types.ts#L141)
+[src/ir/types.ts:143](../src/ir/types.ts#L143)
 
 `DocumentationSet`
 
@@ -154,31 +154,31 @@ Positions are relative to `example.code`, same convention as HoverInfo.
 
 ### `ExampleResult`
 
-[src/ir/types.ts:205](../src/ir/types.ts#L205)
+[src/ir/types.ts:207](../src/ir/types.ts#L207)
 
 `ExampleResult`
 
 ### `ExampleStatus`
 
-[src/ir/types.ts:189](../src/ir/types.ts#L189)
+[src/ir/types.ts:191](../src/ir/types.ts#L191)
 
 `"pending" | "passed" | "failed" | "skipped"`
 
 ### `FailureInfo`
 
-[src/ir/types.ts:191](../src/ir/types.ts#L191)
+[src/ir/types.ts:193](../src/ir/types.ts#L193)
 
 `FailureInfo`
 
 ### `GeneratedTest`
 
-[src/ir/types.ts:178](../src/ir/types.ts#L178)
+[src/ir/types.ts:180](../src/ir/types.ts#L180)
 
 `GeneratedTest`
 
 ### `HoverInfo`
 
-[src/ir/types.ts:73](../src/ir/types.ts#L73)
+[src/ir/types.ts:75](../src/ir/types.ts#L75)
 
 `HoverInfo`
 
@@ -194,7 +194,7 @@ offset; `line`/`column` are 1-indexed within the snippet.
 
 ### `MetonymConfig`
 
-[src/ir/types.ts:270](../src/ir/types.ts#L270)
+[src/ir/types.ts:272](../src/ir/types.ts#L272)
 
 `MetonymConfig`
 
@@ -208,49 +208,49 @@ line is 1-indexed, column is 1-indexed, offset is a 0-indexed byte offset.
 
 ### `Project`
 
-[src/ir/types.ts:315](../src/ir/types.ts#L315)
+[src/ir/types.ts:317](../src/ir/types.ts#L317)
 
 `Project`
 
 ### `Relation`
 
-[src/ir/types.ts:132](../src/ir/types.ts#L132)
+[src/ir/types.ts:134](../src/ir/types.ts#L134)
 
 `{ kind: "contains"; from: string; to: string; } | { kind: "documents"; from: string; to: string; } | { kind: "owns"; from: string; to: string; } | { kind: "imports"; from: string; to: string; } | { kind: "references"; from: string; to: string; } | { kind: "calls"; from: string; to: string; } | { kind: "generates"; from: string; to: string; }`
 
 ### `RenderedFile`
 
-[src/ir/types.ts:245](../src/ir/types.ts#L245)
+[src/ir/types.ts:247](../src/ir/types.ts#L247)
 
 `RenderedFile`
 
 ### `Renderer`
 
-[src/ir/types.ts:260](../src/ir/types.ts#L260)
+[src/ir/types.ts:262](../src/ir/types.ts#L262)
 
 `Renderer<TOptions>`
 
 ### `RenderOptions`
 
-[src/ir/types.ts:255](../src/ir/types.ts#L255)
+[src/ir/types.ts:257](../src/ir/types.ts#L257)
 
 `RenderOptions`
 
 ### `RenderResult`
 
-[src/ir/types.ts:251](../src/ir/types.ts#L251)
+[src/ir/types.ts:253](../src/ir/types.ts#L253)
 
 `RenderResult`
 
 ### `RunResult`
 
-[src/ir/types.ts:218](../src/ir/types.ts#L218)
+[src/ir/types.ts:220](../src/ir/types.ts#L220)
 
 `RunResult`
 
 ### `SidecarEntry`
 
-[src/ir/types.ts:161](../src/ir/types.ts#L161)
+[src/ir/types.ts:163](../src/ir/types.ts#L163)
 
 `SidecarEntry`
 
@@ -260,7 +260,7 @@ Import statements are rewritten in place, one line each, preserving count.
 
 ### `SidecarMap`
 
-[src/ir/types.ts:171](../src/ir/types.ts#L171)
+[src/ir/types.ts:173](../src/ir/types.ts#L173)
 
 `SidecarMap`
 
@@ -272,7 +272,7 @@ Import statements are rewritten in place, one line each, preserving count.
 
 ### `SymbolInfo`
 
-[src/ir/types.ts:114](../src/ir/types.ts#L114)
+[src/ir/types.ts:116](../src/ir/types.ts#L116)
 
 `SymbolInfo`
 
@@ -300,7 +300,7 @@ Import statements are rewritten in place, one line each, preserving count.
 
 ### `extractJsdoc`
 
-[src/parse/jsdoc.ts:47](../src/parse/jsdoc.ts#L47)
+[src/parse/jsdoc.ts:48](../src/parse/jsdoc.ts#L48)
 
 `(source: string, opts: { file: string; languages?: string[]; blocks?: JsdocBlock[]; lines?: string[]; lineOffsets?: number[]; }): ExtractJsdocResult`
 
@@ -308,7 +308,7 @@ Import statements are rewritten in place, one line each, preserving count.
 
 ### `extractMarkdown`
 
-[src/parse/markdown.ts:36](../src/parse/markdown.ts#L36)
+[src/parse/markdown.ts:37](../src/parse/markdown.ts#L37)
 
 `(text: string, opts: { file: string; languages?: string[]; }): ExtractMarkdownResult`
 

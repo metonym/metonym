@@ -70,6 +70,24 @@ out or change semantics:
 | `ignore` | Skipped entirely |
 | `group=name` | Blocks sharing a group run in one scope, in order |
 
+An expression followed by a `// => value` comment is rewritten into an
+assertion instead of you writing one by hand, similar to Go's `// Output:`
+or Elixir's `iex>`:
+
+```ts
+[1, 2].map((n) => n * 2) // => [2, 4]
+```
+
+`value` is matched as JSON when it parses as JSON (numbers, booleans,
+`null`, double-quoted strings, `[...]`/`{"k": v}`); as a JS literal
+(`undefined`, `NaN`, `-Infinity`, single-quoted strings, `[...]`/`{...}`
+with unquoted keys) when that parses; otherwise the expression's
+`String(...)` form is compared against `value` as text, which is how
+`Symbol("s") // => Symbol(s)` works. A comment-only `// => ...` line
+continues the previous line's expected value across multiple lines.
+`metonym check --update` rewrites stale `// =>` values in your docs from
+what a failing run actually received — see [`check`](#check).
+
 Every example body is wrapped in an `async` function, so top-level `await`
 just works. Static imports are rewritten in place to dynamic imports, and
 line numbers are preserved 1:1, which is how failures map back to your docs.
