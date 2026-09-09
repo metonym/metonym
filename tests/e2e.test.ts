@@ -549,6 +549,60 @@ describe("group= doc-line remap", () => {
   });
 });
 
+describe("check --update", () => {
+  test("rewrites a stale `// =>` expected value from the received value", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metonym-update-e2e-"));
+    try {
+      await Bun.write(
+        join(root, "package.json"),
+        JSON.stringify({ name: "demo-pkg" }),
+      );
+      await Bun.write(
+        join(root, "README.md"),
+        [
+          "# demo-pkg",
+          "",
+          "```ts",
+          "function add(a, b) { return a + b }",
+          "add(1, 2) // => 4",
+          "```",
+          "",
+        ].join("\n"),
+      );
+
+      const before = runCli(["check", `--root=${root}`]);
+      expect(before.exitCode).toBe(1);
+
+      const update = runCli(["check", `--root=${root}`, "--update"]);
+      expect(update.exitCode).toBe(1);
+      expect(update.stderr).toContain("updated README.md:5");
+      expect(update.stderr).toContain(
+        "1 expected value(s) updated — re-run metonym check",
+      );
+
+      const readme = await Bun.file(join(root, "README.md")).text();
+      expect(readme).toContain("add(1, 2) // => 3");
+
+      const after = runCli(["check", `--root=${root}`]);
+      expect(after.exitCode).toBe(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("--update refuses to combine with --watch or a machine reporter", () => {
+    const watch = runCli(["check", "--update", "--watch"]);
+    expect(watch.exitCode).toBe(2);
+    expect(watch.stderr).toContain("--update is not supported with --watch");
+
+    const json = runCli(["check", "--update", "--reporter=json"]);
+    expect(json.exitCode).toBe(2);
+    expect(json.stderr).toContain(
+      "--update is not supported with --reporter=json",
+    );
+  });
+});
+
 describe("extraction warnings", () => {
   test("metonym extract prints a warning for a typo'd attribute and still exits 0", async () => {
     const root = await mkdtemp(join(tmpdir(), "metonym-e2e-warnings-"));
