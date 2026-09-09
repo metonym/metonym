@@ -48,6 +48,21 @@ reporter whenever `GITHUB_ACTIONS=true` (which GitHub sets on every
 runner), so failures and pending examples show up as inline annotations
 on the diff. Pass `--reporter=pretty` to opt back into plain output.
 
+## Monorepos
+
+`bunx metonym check --workspaces` runs `check` in every
+`package.json#workspaces` package, and each package keeps its own result
+cache under its own `.metonym/`, not a single top-level one. Change the
+cache step's `path` to `"**/.metonym"` so every package's cache is saved
+and restored, not just the root's:
+
+```yaml
+      - uses: actions/cache@v4
+        with:
+          path: "**/.metonym"
+          key: ${{ runner.os }}-metonym-${{ hashFiles('bun.lock') }}
+```
+
 GitHub-hosted `pull_request` jobs already run in a VM, and fork PRs do
 not get secrets by default. If you add secrets to this workflow or
 switch to `pull_request_target`, treat `metonym check` like `bun test`:
