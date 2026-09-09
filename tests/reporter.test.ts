@@ -2,7 +2,10 @@
  * Tests for the pretty reporter's timeout and slow-example formatting.
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { reportPretty } from "../src/cli/reporter";
 import type { RunResult } from "../src/ir/types";
 
@@ -125,5 +128,54 @@ describe("reportPretty", () => {
 
     const out = await captureStderr(() => reportPretty(result, "/tmp"));
     expect(out).toContain("(1500ms)");
+  });
+
+  describe("`// =>` failures", () => {
+    let root: string;
+
+    beforeAll(async () => {
+      root = await mkdtemp(join(tmpdir(), "metonym-reporter-"));
+      await Bun.write(
+        join(root, "README.md"),
+        ["```ts", "add(1, 2) // => 4", "```", ""].join("\n"),
+      );
+    });
+
+    afterAll(async () => {
+      await rm(root, { recursive: true, force: true });
+    });
+
+    test("shows expected (doc) and received above the message", async () => {
+      const result = baseResult({
+        results: [
+          {
+            exampleId: "ex:1",
+            title: "README.md › example 1",
+            docFile: "README.md",
+            status: "failed",
+            durationMs: 5,
+            failure: {
+              message: "expect(received).toEqual(expected)",
+              expected: "4",
+              received: "3",
+              doc: { file: "README.md", line: 2 },
+              generated: { file: "README.md.test.ts" },
+            },
+          },
+        ],
+        totals: {
+          total: 1,
+          passed: 0,
+          failed: 1,
+          pending: 0,
+          skipped: 0,
+          durationMs: 5,
+        },
+      });
+
+      const out = await captureStderr(() => reportPretty(result, root));
+      expect(out).toContain("expected (doc): 4");
+      expect(out).toContain("received: 3");
+    });
   });
 });

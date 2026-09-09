@@ -5,6 +5,7 @@
  */
 
 import type { ExampleResult, RunResult } from "../ir/types";
+import { matchOutputComment, matchOutputContinuation } from "../parse/outputs";
 import { c } from "./colors";
 
 const MARK: Record<ExampleResult["status"], string> = {
@@ -72,6 +73,14 @@ export async function reportPretty(
       out.push("");
       out.push(...(await excerpt(root, doc.file, doc.line, doc.column)));
       out.push("");
+      const expected = await expectedOutputAt(root, doc.file, doc.line);
+      if (expected !== undefined) {
+        out.push(`  ${c.dim(`expected (doc): ${expected}`)}`);
+        if (r.failure.received !== undefined) {
+          out.push(`  ${c.dim(`received: ${r.failure.received}`)}`);
+        }
+        out.push("");
+      }
     } else {
       out.push(`  ${r.title} ${c.dim("(location could not be remapped)")}`);
       out.push("");
@@ -99,6 +108,32 @@ export async function reportPretty(
   out.push(parts.join(" · "));
 
   process.stderr.write(`${out.join("\n")}\n`);
+}
+
+/**
+ * Reads the doc line a failure remapped to and, if it's a `// => value`
+ * expected-output comment, returns the (possibly multi-line-joined)
+ * expected value so `reportPretty` can show it next to what was received.
+ */
+async function expectedOutputAt(
+  root: string,
+  file: string,
+  line: number,
+): Promise<string | undefined> {
+  try {
+    const lines = (await Bun.file(`${root}/${file}`).text()).split("\n");
+    const match = matchOutputComment(lines[line - 1] ?? "");
+    if (!match) return undefined;
+    const values = [match.value];
+    for (let i = line; i < lines.length; i++) {
+      const cont = matchOutputContinuation(lines[i]);
+      if (cont === null) break;
+      values.push(cont);
+    }
+    return values.join(" ");
+  } catch {
+    return undefined;
+  }
 }
 
 async function excerpt(
