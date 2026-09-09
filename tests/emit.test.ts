@@ -1290,3 +1290,56 @@ test("inject: false still generates a throws example without depending on the au
     new Bun.Transpiler({ loader: "ts" }).transformSync(generated.code),
   ).not.toThrow();
 });
+
+test("`expr // => value` rewrites to an expect() on the same line", () => {
+  const code = generateFromCode(
+    "function add(a, b) { return a + b }\nadd(1, 2) // => 3",
+  );
+  expect(code).toContain("expect(add(1, 2)).toEqual(3);");
+});
+
+test('`expr // => "str"` rewrites to toEqual with the quoted string', () => {
+  const code = generateFromCode(
+    'function greet(n) { return "hi " + n }\ngreet("x") // => "hi x"',
+  );
+  expect(code).toContain('expect(greet("x")).toEqual("hi x");');
+});
+
+test("`expr // => { ... }` with unquoted keys rewrites via the transpiler-checked path", () => {
+  const code = generateFromCode("const obj = { a: 1 };\nobj // => { a: 1 }");
+  expect(code).toContain("expect(obj).toEqual({ a: 1 });");
+  expect(() =>
+    new Bun.Transpiler({ loader: "ts" }).transformSync(code),
+  ).not.toThrow();
+});
+
+test("`expr // => value` falls back to String()/toBe() when value isn't a safe literal", () => {
+  const code = generateFromCode('Symbol("s") // => Symbol(s)');
+  expect(code).toContain('expect(String(Symbol("s"))).toBe("Symbol(s)");');
+});
+
+test("a declaration line with a trailing `// =>` comment is left alone", () => {
+  const code = generateFromCode("const x = 1 // => 1");
+  expect(code).toContain("const x = 1 // => 1");
+  expect(code).not.toContain("expect(x)");
+});
+
+test("`// =>` rewrite preserves line count", () => {
+  const doc: Document = {
+    id: "doc:test.md",
+    file: "test.md",
+    origin: "markdown",
+    exampleIds: ["ex:test.md:1"],
+  };
+  const bodyCode = "add(1, 2) // => 3\nexpect(1).toBe(1);";
+  const docSet = createDocSet([doc], [makeExample(bodyCode)]);
+  const [generated] = generate(docSet);
+
+  const entry = generated.map.entries[0];
+  const genBodyLines = getBodyLines(
+    generated.code,
+    entry.genCodeStartLine,
+    entry.genCodeEndLine,
+  );
+  expect(genBodyLines).toHaveLength(2);
+});

@@ -7,6 +7,7 @@ import type { Document, Example } from "../ir/types";
 import { DEFAULT_CONFIG } from "../ir/types";
 import { type Fence, lineOffsetsOf, scanFencesFromLines } from "./fence";
 import { infoStringWarnings, isExecutableLang, parseInfoString } from "./info";
+import { scanOutputComments } from "./outputs";
 
 export interface ExtractMarkdownResult {
   document: Document;
@@ -113,6 +114,7 @@ export function extractMarkdown(
     }
 
     const id = allocator(fence.code);
+    const outputs = scanOutputComments(fence.code);
 
     const example: Example = {
       id,
@@ -148,6 +150,7 @@ export function extractMarkdown(
       kind: info.kind,
       group: info.group,
       title: exampleTitle,
+      ...(outputs.length > 0 ? { outputs } : {}),
     };
 
     examples.push(example);
