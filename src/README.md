@@ -168,6 +168,12 @@ stale.
 `metonym extract --format=json` emits a feed a static docs site can
 pre-render as an API reference. No site generator is included, by design.
 
+Every JSON command (`check --reporter=json`, `check --list`, `coverage`,
+`impact`) is stamped with a `tool` identity and a versioned `schema`, so an
+agent can identify what it's looking at without guessing from shape alone.
+See [`docs/json.md`](../docs/json.md) for the field-by-field reference and
+the stability promise.
+
 With deep analysis on, the IR carries per-symbol JSDoc prose and tags,
 type signatures, and per-example hover metadata. For every identifier in
 every example, a `{ start, length, line, column, info, docs?, symbol? }`
