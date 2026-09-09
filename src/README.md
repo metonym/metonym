@@ -13,7 +13,7 @@ extracted and executed in CI.
 - Fail CI on the README line that broke.
 - Gate coverage on exports that examples actually call.
 - Trace a source change to the docs it invalidates.
-- Zero runtime dependencies. Bun ≥ 1.4 only.
+- Zero runtime dependencies. Bun ≥ 1.3 only.
 - Mark APIs that do not exist yet `pending`. They report. They do not fail CI.
 
 Copy-paste recipes for adding metonym to a package live in
