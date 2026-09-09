@@ -54,7 +54,7 @@ export function matchOutputContinuation(line: string): string | null {
  *   `expect(expr).toEqual(value)`
  * - otherwise → `expect(String(expr)).toBe(JSON.stringify(value))`
  */
-export function buildOutputAssertion(
+function buildOutputAssertion(
   indent: string,
   expr: string,
   value: string,
