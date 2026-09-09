@@ -9,25 +9,29 @@
  */
 
 import * as fs from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { join, resolve } from "node:path";
 import { resolveAnalysisMode } from "../analysis/provider";
-import { extractCachedWithKeys } from "../cache/extract-cache";
 import { writeAtomic } from "../cache/fs";
 import { runCached } from "../cache/result-cache";
 import { generate } from "../emit/generate";
-import { extract } from "../extract";
-import {
-  type DocumentationSet,
-  type Project,
-  type RunResult,
-  TOOL_VERSION,
-} from "../ir/types";
-import { scan } from "../scan/scan";
+import { type Project, type RunResult, TOOL_VERSION } from "../ir/types";
 import { discoverWorkspaces } from "../scan/workspaces";
 import { c } from "./colors";
+import {
+  type CheckCommandOptions,
+  type CommandOptions,
+  checkCommand,
+  coverageCommand,
+  extractCommand,
+  extractFor,
+  impactCommand,
+  type ListedExample,
+  resolveOutDir,
+  resolveProject,
+  selectCommand,
+} from "./commands";
 import { stampJson } from "./json";
 import { reportPretty } from "./reporter";
-import { selectExamples } from "./select";
 import { UsageError } from "./usage-error";
 
 // Command-specific modules are dynamically imported at their one call site
@@ -239,11 +243,7 @@ function onlyFlag(flags: Map<string, string | true>): string[] | undefined {
   return typeof v === "string" ? v.split(",") : undefined;
 }
 
-/** Joins `dir` onto `root` unless `dir` is already absolute (e.g. `--out-dir=/tmp/mb`). */
-function resolveOutDir(root: string, dir: string): string {
-  return isAbsolute(dir) ? dir : join(root, dir);
-}
-
+/** Used by `build`/`graph`, which keep operating on a pre-loaded `Project`. */
 async function loadProject(args: Args): Promise<Project> {
   const overrides: Record<string, unknown> = {};
   const outDir = strFlag(args.flags, "out-dir");
@@ -254,84 +254,48 @@ async function loadProject(args: Args): Promise<Project> {
   if (outDir && args.command !== "build") overrides.outDir = outDir;
   const analysis = strFlag(args.flags, "analysis");
   if (analysis) overrides.analysis = analysis;
-  const project = await scan({
+  return resolveProject({
     root: strFlag(args.flags, "root"),
-    config: Object.keys(overrides).length
+    paths: args.paths,
+    overrides: Object.keys(overrides).length
       ? (overrides as Partial<Project["config"]>)
       : undefined,
     noConfigFile: args.flags.has("no-config"),
   });
-  if (args.paths.length > 0) {
-    const match = (f: string) =>
-      args.paths.some(
-        (p) => f === p || f.startsWith(`${p.replace(/\/$/, "")}/`),
-      );
-    project.docFiles = project.docFiles.filter(match);
-    project.sourceFiles = project.sourceFiles.filter(match);
-    if (project.docFiles.length === 0 && project.sourceFiles.length === 0) {
-      throw new UsageError(
-        `no documentation or source files matched: ${args.paths.join(", ")}`,
-      );
-    }
-  }
-  return project;
 }
 
-async function extractFor(
-  project: Project,
-  full: boolean,
-  opts?: { skipAnalysis?: boolean },
-): Promise<DocumentationSet> {
-  let docs: DocumentationSet;
-  let fileKeys: Map<string, string> | undefined;
-  if (full) {
-    docs = await extract(project);
-  } else {
-    ({ docs, fileKeys } = await extractCachedWithKeys(project));
-  }
-  for (const w of docs.warnings ?? [])
-    process.stderr.write(`${c.yellow(`warning: ${w}`)}\n`);
-  if (opts?.skipAnalysis) return docs;
-  const { mode, tsPath } = resolveAnalysisMode(
-    project.root,
-    project.config.analysis,
-  );
-  if (mode === "deep") {
-    let enriched: { docs: DocumentationSet; diagnostics: string[] };
-    if (full) {
-      const { enrichWithTypeScript } = await import("../analysis/ts-provider");
-      enriched = await enrichWithTypeScript(docs, {
-        tsPath,
-        sourceFiles: project.sourceFiles,
-      });
-    } else {
-      const { enrichWithTypeScriptCached } = await import(
-        "../cache/deep-analysis-cache"
-      );
-      enriched = await enrichWithTypeScriptCached(docs, {
-        tsPath,
-        sourceFiles: project.sourceFiles,
-        fileKeys,
-      });
-    }
-    for (const d of enriched.diagnostics)
-      process.stderr.write(`${c.yellow(`warning: ${d}`)}\n`);
-    docs = enriched.docs;
-  }
-  return docs;
+/** Shared option fields for the `commands.ts` verbs, read from parsed CLI flags. */
+function commonOptionsFrom(args: Args): CommandOptions {
+  return {
+    root: strFlag(args.flags, "root"),
+    paths: args.paths,
+    outDir: strFlag(args.flags, "out-dir"),
+    filter: strFlag(args.flags, "filter"),
+    changed: args.flags.get("changed") as string | boolean | undefined,
+    full: args.flags.has("full"),
+    analysis: strFlag(args.flags, "analysis") as CommandOptions["analysis"],
+    noConfig: args.flags.has("no-config"),
+  };
 }
 
-/**
- * Whether `check` should run deep analysis. Nothing on the check path
- * reads what it produces (hovers, diagnostics, signatures live on the IR
- * for extract/build/coverage), so under the default "auto" it is pure
- * cold-start cost: loading TypeScript and parsing lib + node_modules
- * typings is ~700ms even on a small repo, and in --watch it reran on
- * every edit. Explicit `analysis: "deep"` keeps it (and its warnings);
- * --changed keeps it because impact tracing is stronger with references.
- */
-function checkNeedsAnalysis(project: Project, args: Args): boolean {
-  return project.config.analysis === "deep" || args.flags.has("changed");
+function checkOptionsFrom(
+  args: Args,
+  only: string[] | undefined,
+  signal: AbortSignal,
+): CheckCommandOptions {
+  return {
+    ...commonOptionsFrom(args),
+    only,
+    timeoutMs: timeoutFlag(args),
+    bail: bailFlag(args),
+    signal,
+  };
+}
+
+/** Root a `--root=<dir>` flag resolves to, without a full project scan (for `--failed`). */
+function resolveRoot(args: Args): string {
+  const root = strFlag(args.flags, "root");
+  return root ? resolve(root) : process.cwd();
 }
 
 function timeoutFlag(args: Args): number | undefined {
@@ -343,22 +307,6 @@ function bailFlag(args: Args): boolean | number | undefined {
   const v = args.flags.get("bail");
   if (v === undefined) return undefined;
   return v === true ? true : Number(v);
-}
-
-function emptyRunResult(project: Project): RunResult {
-  return {
-    results: [],
-    totals: {
-      total: 0,
-      passed: 0,
-      failed: 0,
-      pending: 0,
-      skipped: 0,
-      durationMs: 0,
-    },
-    outDir: resolveOutDir(project.root, project.config.outDir),
-    exitCode: 0,
-  };
 }
 
 interface LastRunFile {
@@ -413,113 +361,73 @@ async function readFailedIds(root: string): Promise<string[]> {
     .map((r) => r.exampleId);
 }
 
-/** `check --list`: print the selected examples to stdout, without generating or running anything. */
-function listExamples(docs: DocumentationSet, json: boolean): void {
-  if (json) {
-    process.stdout.write(
-      `${JSON.stringify(
-        stampJson("list", {
-          examples: docs.examples.map((e) => ({
-            id: e.id,
-            kind: e.kind,
-            language: e.language,
-            docFile: e.source.file,
-            line: e.source.start.line,
-            title: e.title,
-            ...(e.group ? { group: e.group } : {}),
-          })),
-        }),
-      )}\n`,
-    );
-    return;
-  }
-  for (const e of docs.examples) {
-    process.stdout.write(
-      `${e.id}\t${e.kind}\t${e.source.file}:${e.source.start.line}\t${e.title}\n`,
-    );
-  }
-}
-
-async function checkOnce(
-  project: Project,
-  args: Args,
-  signal?: AbortSignal,
-  opts?: { report?: boolean; strictOnly?: boolean },
-): Promise<RunResult> {
-  const report = opts?.report ?? true;
-  const full = args.flags.has("full");
-  let failedOnly: string[] | undefined;
+/**
+ * One `check` pass: `--list` prints selected examples and returns; otherwise
+ * runs them, prints via the chosen reporter, and records the run for a later
+ * `--failed`. Called once for a plain `check`, and once per file change
+ * under `--watch`, so `--list`/`--failed` are re-evaluated fresh each time.
+ */
+async function runCheckOnce(args: Args, signal: AbortSignal): Promise<number> {
+  let only = onlyFlag(args.flags);
   if (args.flags.has("failed")) {
-    failedOnly = await readFailedIds(project.root);
-    if (failedOnly.length === 0) {
+    only = await readFailedIds(resolveRoot(args));
+    if (only.length === 0) {
       process.stderr.write("nothing failed in the last run\n");
-      return emptyRunResult(project);
+      return 0;
     }
   }
-  let docs = await extractFor(project, full, {
-    skipAnalysis: !checkNeedsAnalysis(project, args),
-  });
-  selectExamples(docs, {
-    filter: strFlag(args.flags, "filter"),
-    only: failedOnly ?? onlyFlag(args.flags),
-    strict: opts?.strictOnly ?? true,
-  });
-  if (args.flags.has("changed") && !full) {
-    const { selectAffected } = await import("../graph/select");
-    const selection = await selectAffected(docs, {
-      since: strFlag(args.flags, "changed"),
-    });
-    if (selection.note) process.stderr.write(`${selection.note}\n`);
-    if (selection.mode === "affected") {
-      for (const [id, reasons] of selection.reasons) {
-        const ex = docs.examples.find((e) => e.id === id);
-        process.stderr.write(`  ${ex?.title ?? id} ← ${reasons.join("; ")}\n`);
-      }
-      docs = selection.docs;
-    }
-  }
+
   if (args.flags.has("list")) {
-    listExamples(docs, args.flags.get("reporter") === "json");
-    return emptyRunResult(project);
-  }
-  const emit = {
-    jsxImportSource: project.config.jsxImportSource,
-    inject: project.config.inject,
-  };
-  for (const gt of generate(docs, emit)) {
-    for (const diag of gt.diagnostics ?? [])
-      process.stderr.write(`${c.yellow(`warning: ${diag}`)}\n`);
-  }
-  const result = await runCached(docs, {
-    outDir: resolveOutDir(project.root, project.config.outDir),
-    full,
-    emit,
-    timeoutMs: timeoutFlag(args),
-    bail: bailFlag(args),
-    signal,
-  });
-  if (report) {
-    // Explicit --reporter=pretty opts out of the GitHub Actions auto-select.
-    const reporter =
-      strFlag(args.flags, "reporter") ??
-      (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
-    if (reporter === "json") {
+    const { examples } = await selectCommand({
+      ...commonOptionsFrom(args),
+      only,
+    });
+    if (args.flags.get("reporter") === "json") {
       process.stdout.write(
-        `${JSON.stringify(stampJson("run", result), null, 2)}\n`,
+        `${JSON.stringify(stampJson("list", { examples }))}\n`,
       );
-    } else if (reporter === "github") {
-      const { reportGithub } = await import("./reporters/github");
-      reportGithub(result);
-      await reportPretty(result, project.root);
-    } else if (reporter === "junit") {
-      const { reportJunit } = await import("./reporters/junit");
-      process.stdout.write(reportJunit(result));
     } else {
-      await reportPretty(result, project.root);
+      for (const e of examples) {
+        process.stdout.write(
+          `${e.id}\t${e.kind}\t${e.docFile}:${e.line}\t${e.title}\n`,
+        );
+      }
     }
+    return 0;
+  }
+
+  const { project, result } = await checkCommand(
+    checkOptionsFrom(args, only, signal),
+  );
+  // Explicit --reporter=pretty opts out of the GitHub Actions auto-select.
+  const reporter =
+    strFlag(args.flags, "reporter") ??
+    (process.env.GITHUB_ACTIONS === "true" ? "github" : "pretty");
+  if (reporter === "json") {
+    process.stdout.write(
+      `${JSON.stringify(stampJson("run", result), null, 2)}\n`,
+    );
+  } else if (reporter === "github") {
+    const { reportGithub } = await import("./reporters/github");
+    reportGithub(result);
+    await reportPretty(result, project.root);
+  } else if (reporter === "junit") {
+    const { reportJunit } = await import("./reporters/junit");
+    process.stdout.write(reportJunit(result));
+  } else {
+    await reportPretty(result, project.root);
   }
   await writeLastRun(project, result);
-  return result;
+
+  if (result.exitCode === 130) return 130;
+  // A nonzero bun-test exit with zero matched failures means the run itself
+  // broke (e.g. a generated file failed to load) — never exit 0.
+  if (result.totals.failed > 0) return 1;
+  if (result.exitCode !== 0) {
+    printBrokenRun(result);
+    return 1;
+  }
+  return 0;
 }
 
 /** Prints a broken (non-cleanly-completed) run's stderr and error line. */
@@ -534,61 +442,36 @@ function printBrokenRun(result: RunResult): void {
   );
 }
 
-/** `--workspaces` flags forwarded from the root invocation into each package. */
-const WORKSPACE_CARRIED_FLAGS = [
-  "analysis",
-  "no-config",
-  "filter",
-  "only",
-  "changed",
-  "timeout",
-  "bail",
-] as const;
-
-function carriedFlags(
-  flags: Map<string, string | true>,
-): Map<string, string | true> {
-  const out = new Map<string, string | true>();
-  for (const name of WORKSPACE_CARRIED_FLAGS) {
-    const v = flags.get(name);
-    if (v !== undefined) out.set(name, v);
-  }
-  return out;
-}
-
 /**
- * Loads one workspace package's project. Positional paths from the root
- * invocation only apply to a package when they start with that package's
- * directory (stripped to package-relative); otherwise they're ignored for
- * that package, i.e. it runs unfiltered.
+ * Options for one workspace package: root scoped to the package directory,
+ * plus the subset of root flags `--workspaces` forwards. Positional paths
+ * from the root invocation only apply to a package when they start with
+ * that package's directory (stripped to package-relative); otherwise
+ * they're ignored for that package, i.e. it runs unfiltered. `--full`,
+ * `--out-dir`, and `--reporter` are deliberately not forwarded: caching and
+ * output location are per-package concerns, and the reporter is applied
+ * once at the `--workspaces` level.
  */
-async function loadPackageProject(
+function packageCommandOptions(
   rootProject: Project,
   pkg: string,
   args: Args,
-): Promise<Project> {
-  const overrides: Record<string, unknown> = {};
-  const analysis = strFlag(args.flags, "analysis");
-  if (analysis) overrides.analysis = analysis;
-  const project = await scan({
-    root: join(rootProject.root, pkg),
-    config: Object.keys(overrides).length
-      ? (overrides as Partial<Project["config"]>)
-      : undefined,
-    noConfigFile: args.flags.has("no-config"),
-  });
+): CommandOptions {
   const prefix = `${pkg.replace(/\/$/, "")}/`;
   const paths = args.paths
     .filter((p) => p === pkg || p.startsWith(prefix))
     .map((p) => (p === pkg ? "" : p.slice(prefix.length)))
     .filter((p) => p.length > 0);
-  if (paths.length > 0) {
-    const match = (f: string) =>
-      paths.some((p) => f === p || f.startsWith(`${p.replace(/\/$/, "")}/`));
-    project.docFiles = project.docFiles.filter(match);
-    project.sourceFiles = project.sourceFiles.filter(match);
-  }
-  return project;
+  return {
+    root: join(rootProject.root, pkg),
+    paths,
+    filter: strFlag(args.flags, "filter"),
+    only: onlyFlag(args.flags),
+    changed: args.flags.get("changed") as string | boolean | undefined,
+    analysis: strFlag(args.flags, "analysis") as CommandOptions["analysis"],
+    noConfig: args.flags.has("no-config"),
+    strict: false,
+  };
 }
 
 function mergeTotals(totalsList: RunResult["totals"][]): RunResult["totals"] {
@@ -620,54 +503,34 @@ async function listWorkspaces(
   args: Args,
 ): Promise<number> {
   const json = strFlag(args.flags, "reporter") === "json";
-  const packages: { package: string; examples: unknown[] }[] = [];
+  const packages: { package: string; examples: ListedExample[] }[] = [];
   for (const pkg of pkgs) {
-    const project = await loadPackageProject(rootProject, pkg, args);
-    const docs = await extractFor(project, false, {
-      skipAnalysis: !checkNeedsAnalysis(project, args),
-    });
-    selectExamples(docs, {
-      filter: strFlag(args.flags, "filter"),
-      only: onlyFlag(args.flags),
-      strict: false,
-    });
+    const { examples } = await selectCommand(
+      packageCommandOptions(rootProject, pkg, args),
+    );
     if (json) {
-      packages.push({
-        package: pkg,
-        examples: docs.examples.map((e) => ({
-          id: e.id,
-          kind: e.kind,
-          language: e.language,
-          docFile: e.source.file,
-          line: e.source.start.line,
-          title: e.title,
-          ...(e.group ? { group: e.group } : {}),
-        })),
-      });
+      packages.push({ package: pkg, examples });
     } else {
-      for (const e of docs.examples) {
+      for (const e of examples) {
         process.stdout.write(
-          `${e.id}\t${e.kind}\t${pkg}/${e.source.file}:${e.source.start.line}\t${e.title}\n`,
+          `${e.id}\t${e.kind}\t${pkg}/${e.docFile}:${e.line}\t${e.title}\n`,
         );
       }
     }
   }
   if (json) {
     process.stdout.write(
-      `${JSON.stringify({
-        tool: { name: TOOL_NAME, version: TOOL_VERSION },
-        packages,
-      })}\n`,
+      `${JSON.stringify(stampJson("list", { packages }))}\n`,
     );
   }
   return 0;
 }
 
-/** `check --workspaces`: runs `checkOnce` per package.json#workspaces package. */
+/** `check --workspaces`: runs `check` in every package.json#workspaces package. */
 async function checkWorkspaces(
   rootProject: Project,
   args: Args,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<number> {
   const pkgs = await discoverWorkspaces(rootProject.root);
   if (pkgs.length === 0) {
@@ -688,16 +551,13 @@ async function checkWorkspaces(
   let failedOrBroken = false;
 
   for (const pkg of pkgs) {
-    const project = await loadPackageProject(rootProject, pkg, args);
-    const pkgArgs: Args = {
-      command: args.command,
-      paths: [],
-      flags: carriedFlags(args.flags),
-    };
-    const result = await checkOnce(project, pkgArgs, signal, {
-      report: false,
-      strictOnly: false,
+    const { project, result } = await checkCommand({
+      ...packageCommandOptions(rootProject, pkg, args),
+      timeoutMs: timeoutFlag(args),
+      bail: bailFlag(args),
+      signal,
     });
+    await writeLastRun(project, result);
     entries.push({ package: pkg, result });
 
     if (result.exitCode === 130) return 130;
@@ -705,7 +565,7 @@ async function checkWorkspaces(
     if (result.totals.total === 0) {
       process.stderr.write(`${c.bold(pkg)}: no examples\n`);
     } else if (reporter === "pretty" || reporter === "github") {
-      // `github` also prints the pretty report to stderr, same as checkOnce.
+      // `github` also prints the pretty report to stderr, same as `check`.
       process.stderr.write(`${c.bold(pkg)}\n`);
       await reportPretty(result, project.root);
       if (result.exitCode !== 0 && result.totals.failed === 0) {
@@ -728,15 +588,13 @@ async function checkWorkspaces(
   if (reporter === "json") {
     process.stdout.write(
       `${JSON.stringify(
-        {
-          tool: { name: TOOL_NAME, version: TOOL_VERSION },
-          schema: "run@1",
+        stampJson("run", {
           packages: entries.map((e) => ({
             package: e.package,
             ...e.result,
           })),
           totals: mergeTotals(entries.map((e) => e.result.totals)),
-        },
+        }),
         null,
         2,
       )}\n`,
@@ -783,26 +641,18 @@ async function run(): Promise<number> {
       process.on("SIGINT", onInterrupt);
       process.on("SIGTERM", onInterrupt);
       try {
-        let project = await loadProject(args);
         if (args.flags.has("workspaces")) {
           if (args.flags.has("watch")) {
             throw new UsageError("--watch is not supported with --workspaces");
           }
-          return await checkWorkspaces(project, args, controller.signal);
+          const rootProject = await loadProject(args);
+          return await checkWorkspaces(rootProject, args, controller.signal);
         }
         if (!args.flags.has("watch")) {
-          const result = await checkOnce(project, args, controller.signal);
-          if (result.exitCode === 130) return 130;
-          // A nonzero bun-test exit with zero matched failures means the run
-          // itself broke (e.g. a generated file failed to load) — never exit 0.
-          if (result.totals.failed > 0) return 1;
-          if (result.exitCode !== 0) {
-            printBrokenRun(result);
-            return 1;
-          }
-          return 0;
+          return await runCheckOnce(args, controller.signal);
         }
 
+        const project = await loadProject(args);
         process.stderr.write("\nwatching for changes… (ctrl-c to exit)\n");
         const { watchProject } = await import("../watch/watch");
         let watchExitCode = 0;
@@ -818,13 +668,8 @@ async function run(): Promise<number> {
             onChange: async (files) => {
               process.stderr.write(`\nchanged: ${files.join(", ")}\n`);
               try {
-                project = await loadProject(args); // re-scan: files may appear/vanish
-                const result = await checkOnce(
-                  project,
-                  args,
-                  controller.signal,
-                );
-                if (result.exitCode === 130) {
+                const exitCode = await runCheckOnce(args, controller.signal);
+                if (exitCode === 130) {
                   watchExitCode = 130;
                   watcher?.stop();
                   done?.();
@@ -859,8 +704,7 @@ async function run(): Promise<number> {
     }
 
     case "extract": {
-      const project = await loadProject(args);
-      const docs = await extractFor(project, args.flags.has("full"));
+      const { project, docs } = await extractCommand(commonOptionsFrom(args));
       const format = args.flags.get("format") ?? "json";
       if (format === "json") {
         process.stdout.write(
@@ -948,17 +792,14 @@ async function run(): Promise<number> {
     }
 
     case "coverage": {
-      const project = await loadProject(args);
-      const docs = await extractFor(project, args.flags.has("full"));
-      const { checkCoverage, coverage } = await import("../graph/queries");
-      const report = coverage(docs);
-
-      let gateResult: { pass: boolean; failures: string[] } | undefined;
-      if (args.flags.has("check")) {
-        const gates = project.config.coverage ?? {};
-        const gate = checkCoverage(docs, gates, report);
-        gateResult = { pass: gate.pass, failures: gate.failures };
-      }
+      const {
+        project,
+        report,
+        gates: gateResult,
+      } = await coverageCommand({
+        ...commonOptionsFrom(args),
+        check: args.flags.has("check"),
+      });
 
       if (args.flags.get("reporter") === "json") {
         const json = gateResult ? { ...report, gates: gateResult } : report;
@@ -1033,61 +874,25 @@ async function run(): Promise<number> {
         );
         return 2;
       }
-      // Path args are the CHANGED files here, not a project filter.
-      const project = await loadProject({ ...args, paths: [] });
-      const docs = await extractFor(project, args.flags.has("full"));
-      let changed: string[];
-      let topLevel: string | undefined;
-      if (args.paths.length > 0) {
-        const { gitTopLevel } = await import("../graph/git");
-        const { isWithin, toProjectRelative } = await import("../graph/paths");
-        const { resolve: pathResolve } = await import("node:path");
-        topLevel = gitTopLevel(project.root);
-        changed = [];
-        for (const p of args.paths) {
-          const rel = toProjectRelative(project.root, p);
-          if (rel.startsWith("../")) {
-            const abs = pathResolve(project.root, rel);
-            if (topLevel === undefined || !isWithin(topLevel, abs)) {
-              process.stderr.write(
-                `warning: ${p} is outside the project root; ignored\n`,
-              );
-              continue;
-            }
-          }
-          changed.push(rel);
-        }
-      } else {
-        const { changedFiles } = await import("../graph/git");
-        const git = changedFiles(project.root, strFlag(args.flags, "since"));
-        if (!git.available) {
-          process.stderr.write(
-            `${c.red("error: not a git repository — pass changed files as arguments")}\n`,
-          );
-          return 2;
-        }
-        changed = git.changedFiles;
-        topLevel = git.topLevel;
-      }
-      if (changed.length === 0) {
-        process.stderr.write("no changes detected\n");
-        return 0;
-      }
-      const { computeImpact, impactGraph, renderImpactTree } = await import(
-        "../graph/impact"
-      );
-      const impact = await computeImpact(docs, changed, { topLevel });
+      const out = await impactCommand({
+        ...commonOptionsFrom(args),
+        since: strFlag(args.flags, "since"),
+        changedPaths: args.paths.length > 0 ? args.paths : undefined,
+      });
+      if (!out.impact) return 0;
       if (format === "text") {
-        process.stdout.write(renderImpactTree(impact));
+        const { renderImpactTree } = await import("../graph/impact");
+        process.stdout.write(renderImpactTree(out.impact));
       } else if (format === "json") {
         process.stdout.write(
-          `${JSON.stringify(stampJson("impact", impact), null, 2)}\n`,
+          `${JSON.stringify(stampJson("impact", out.impact), null, 2)}\n`,
         );
       } else {
+        const { impactGraph } = await import("../graph/impact");
         const { serializeDot, serializeMermaid } = await import(
           "../graph/emit"
         );
-        const g = impactGraph(docs, impact);
+        const g = impactGraph(out.docs, out.impact);
         process.stdout.write(
           format === "mermaid" ? serializeMermaid(g) : serializeDot(g),
         );
