@@ -8,6 +8,7 @@ import { DEFAULT_CONFIG } from "../ir/types";
 import { isWhitespaceCode } from "./chars";
 import { lineOffsetsOf, scanFences } from "./fence";
 import { infoStringWarnings, isExecutableLang, parseInfoString } from "./info";
+import { scanOutputComments } from "./outputs";
 
 export interface ExtractJsdocResult {
   document: Document | null;
@@ -137,6 +138,8 @@ export function extractJsdoc(
             lineOffsets[realEndLine - 1] +
             (realEndLine <= lines.length ? lines[realEndLine - 1].length : 0);
 
+          const outputs = scanOutputComments(fence.code);
+
           const example: Example = {
             id,
             documentId: docId,
@@ -173,6 +176,7 @@ export function extractJsdoc(
             group: info.group,
             owner,
             title: exampleTitle,
+            ...(outputs.length > 0 ? { outputs } : {}),
           };
 
           examples.push(example);
@@ -189,6 +193,7 @@ export function extractJsdoc(
           const id = allocator(section.text);
           const titlePrefix = memberName || declName || file;
           const exampleTitle = `${titlePrefix} › example ${exampleCounter}`;
+          const outputs = scanOutputComments(section.text);
 
           const example: Example = {
             id,
@@ -224,6 +229,7 @@ export function extractJsdoc(
             kind: "assertion",
             owner,
             title: exampleTitle,
+            ...(outputs.length > 0 ? { outputs } : {}),
           };
 
           examples.push(example);

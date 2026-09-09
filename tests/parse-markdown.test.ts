@@ -88,6 +88,31 @@ executed()
   expect(examples[0].code.trim()).toBe("executed()");
 });
 
+test("markdown: `// =>` comments populate example.outputs with 1-based code lines", () => {
+  const text = `# Title
+\`\`\`ts
+const x = 1
+add(1, 2) // => 3
+greet("x") // => "hi x"
+\`\`\``;
+
+  const { examples } = extractMarkdown(text, { file: "test.md" });
+  expect(examples.length).toBe(1);
+  expect(examples[0].outputs).toEqual([
+    { line: 2, expected: "3" },
+    { line: 3, expected: '"hi x"' },
+  ]);
+});
+
+test("markdown: examples without `// =>` comments have no outputs field", () => {
+  const text = `\`\`\`ts
+expect(1).toBe(1)
+\`\`\``;
+
+  const { examples } = extractMarkdown(text, { file: "test.md" });
+  expect(examples[0].outputs).toBeUndefined();
+});
+
 test("markdown: kinds are captured", () => {
   const text = `\`\`\`ts no-run
 no_run_example()

@@ -63,6 +63,8 @@ export interface Example {
   hovers?: HoverInfo[];
   /** Type-checker diagnostics against this example's code, deep analysis only. */
   diagnostics?: Diagnostic[];
+  /** `// => value` expected-output comments in `code`; 1-based line within `code`. */
+  outputs?: { line: number; expected: string }[];
 }
 
 /**

@@ -19,6 +19,7 @@ import {
   isCompleteImportStatement,
   joinStatementLines,
 } from "../parse/imports.ts";
+import { transformOutputComments } from "../parse/outputs.ts";
 import { getTranspiler } from "../parse/transpiler.ts";
 
 /**
@@ -197,11 +198,17 @@ function transformExportDefaultLine(line: string): string {
 
 /**
  * Transform body lines: rewrite top-level static imports in place, strip
- * top-level `export`, and drop shebangs. Statements spanning multiple lines
- * (imports, `export … from`) are joined, transformed onto the first line,
- * and padded with continuation-marker comments to keep line count.
+ * top-level `export`, drop shebangs, and rewrite `expr // => value`
+ * expected-output comments into `expect(...)` assertions. Statements
+ * spanning multiple lines (imports, `export … from`, multi-line `// =>`
+ * values) are joined, transformed onto the first line, and padded with
+ * continuation-marker comments to keep line count.
  */
 function transformBodyLines(lines: string[]): string[] {
+  return transformOutputComments(transformImportsAndExports(lines));
+}
+
+function transformImportsAndExports(lines: string[]): string[] {
   const result: string[] = [];
   let i = 0;
 
