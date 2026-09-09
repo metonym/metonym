@@ -190,6 +190,21 @@ runs in the browser.
 //               "symbol": "sym:src/parse/markdown.ts:extractMarkdown" }] }
 ```
 
+## Agents
+
+`metonym mcp` runs an [MCP](https://modelcontextprotocol.io) server over
+stdio, so an agent gets `list`/`extract`/`impact`/`coverage` as tools
+instead of shelling out to the CLI. Each tool returns the same
+[JSON](../docs/json.md) the CLI prints, wrapped in MCP's `content: [{
+type: "text", text }]`. `check` (`metonym_check`) executes documentation
+code, so it's only registered when the server is started with
+`--allow-run`; calling it without the flag returns an error result
+explaining why.
+
+```json
+{ "command": "bunx", "args": ["metonym", "mcp"] }
+```
+
 ## Deep analysis (optional)
 
 If `typescript` is installed in your project, metonym uses it for symbol
@@ -479,6 +494,12 @@ compared from its merge-base with `HEAD` (three-dot semantics).
 `--format=text\|json\|mermaid\|dot`, default `text`. With deep analysis,
 affected examples that currently fail to type-check are marked inline
 (`⚠ N type error(s)`) in the text and `json` output (`typeErrorCounts`).
+
+### mcp
+
+Runs an [MCP](https://modelcontextprotocol.io) server over stdio, exposing
+`list`/`extract`/`impact`/`coverage` (and, with `--allow-run`, `check`) as
+tools for an agent. See ["Agents"](#agents) below.
 
 ### Global flags
 
