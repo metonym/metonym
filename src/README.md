@@ -406,6 +406,7 @@ paths, not glob patterns).
 | `--timeout=<ms>` | Per-test timeout, forwarded to `bun test --timeout` |
 | `--bail[=<n>]` | Stop after `n` failures (default 1), forwarded to `bun test --bail` |
 | `--watch` | Re-run on file changes; runs until interrupted (ctrl-c exits cleanly) |
+| `--update` | Rewrite stale `// => value` expected-output comments (see [Authoring](#authoring)) in the documentation from what the run actually received. Only touches failed examples whose doc line is a `// =>` comment; groups edits per file and prints `updated <file>:<line>`. The run's exit code is still `1` (the docs were wrong when checked) — re-run `check` to confirm the fix. Not compatible with `--watch` or `--reporter=json\|github\|junit`. **Never run in CI** — it rewrites your source docs. |
 | `--full` | Bypass the result cache, execute every example |
 | `--workspaces` | Run `check` in every `package.json#workspaces` package (see [Monorepos](#monorepos)). Not compatible with `--watch`. |
 

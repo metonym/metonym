@@ -15,6 +15,7 @@ import { writeAtomic } from "../cache/fs";
 import { runCached } from "../cache/result-cache";
 import { generate } from "../emit/generate";
 import { type Project, type RunResult, TOOL_VERSION } from "../ir/types";
+import { matchOutputComment } from "../parse/outputs";
 import { discoverWorkspaces } from "../scan/workspaces";
 import { c } from "./colors";
 import {
@@ -65,6 +66,7 @@ const KNOWN_FLAGS = new Set([
   "reporter",
   "changed",
   "watch",
+  "update",
   "run",
   "check",
   "since",
@@ -190,6 +192,16 @@ function parseArgs(argv: string[]): Args {
       `invalid --bail=${String(bail)} (must be a positive integer)`,
     );
   }
+  if (flags.has("update")) {
+    if (flags.has("watch")) {
+      throw new UsageError("--update is not supported with --watch");
+    }
+    if (reporter === "json" || reporter === "github" || reporter === "junit") {
+      throw new UsageError(
+        `--update is not supported with --reporter=${reporter}`,
+      );
+    }
+  }
 
   return { command, paths, flags };
 }
@@ -226,6 +238,7 @@ Flags:
   --timeout=<ms>                      per-test timeout (check/build --run)
   --bail[=<n>]                        stop after n failures, default 1 (check/build --run)
   --watch                             re-run on file changes (check only)
+  --update                            rewrite stale '// =>' expected values in docs from the received values (check only, never in CI)
   --workspaces                        run check in every package.json#workspaces package
   --run                               build: execute examples to annotate statuses
   --no-config                         ignore metonym.config.ts (package.json#metonym still applies)
@@ -348,6 +361,60 @@ async function writeLastRun(
   );
 }
 
+/**
+ * `check --update`: rewrites stale `// => value` doc lines from what the
+ * run actually received. Edits are grouped per file and applied bottom-up
+ * so line numbers stay stable while a file has multiple edits. The
+ * rewritten line changes the example's content hash, so its id (and thus
+ * its result-cache key, see src/cache/result-cache.ts) changes on the next
+ * extract automatically — no separate cache invalidation is needed.
+ */
+async function applyUpdate(root: string, result: RunResult): Promise<number> {
+  const editsByFile = new Map<string, { line: number; received: string }[]>();
+  for (const r of result.results) {
+    if (r.status !== "failed" || !r.failure) continue;
+    const { doc, received } = r.failure;
+    if (!doc || received === undefined) continue;
+    const edits = editsByFile.get(doc.file) ?? [];
+    edits.push({ line: doc.line, received });
+    editsByFile.set(doc.file, edits);
+  }
+
+  let updated = 0;
+  for (const [file, edits] of editsByFile) {
+    const path = `${root}/${file}`;
+    let lines: string[];
+    try {
+      lines = (await Bun.file(path).text()).split("\n");
+    } catch {
+      continue;
+    }
+
+    let changed = false;
+    for (const { line, received } of [...edits].sort(
+      (a, b) => b.line - a.line,
+    )) {
+      const original = lines[line - 1];
+      if (original === undefined || !matchOutputComment(original)) continue;
+      const value = received.includes("\n")
+        ? JSON.stringify(received)
+        : received;
+      lines[line - 1] = original.replace(
+        /(\/\/\s*=>\s*).*$/,
+        (_, arrow: string) => `${arrow}${value}`,
+      );
+      changed = true;
+      updated++;
+      process.stderr.write(`updated ${file}:${line}\n`);
+    }
+    if (changed) {
+      await Bun.write(path, lines.join("\n"));
+    }
+  }
+
+  return updated;
+}
+
 /** `check --failed`: the ids to re-run, from the last recorded run. */
 async function readFailedIds(root: string): Promise<string[]> {
   let lastRun: LastRunFile;
@@ -422,6 +489,15 @@ async function runCheckOnce(args: Args, signal: AbortSignal): Promise<number> {
     await reportPretty(result, project.root);
   }
   await writeLastRun(project, result);
+
+  if (args.flags.has("update")) {
+    const updated = await applyUpdate(project.root, result);
+    if (updated > 0) {
+      process.stderr.write(
+        `\n${updated} expected value(s) updated — re-run metonym check\n`,
+      );
+    }
+  }
 
   if (result.exitCode === 130) return 130;
   // A nonzero bun-test exit with zero matched failures means the run itself
