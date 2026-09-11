@@ -29,9 +29,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.13",
-    "@types/bun": "^1.4.1",
-    "knip": "^6.34.0",
-    "ostia": "^0.2.3",
+    "@types/bun": "^1.4.2",
+    "knip": "^6.35.1",
+    "ostia": "^0.2.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "metonym": {
