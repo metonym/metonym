@@ -34,6 +34,10 @@
     "ostia": "^0.2.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/metonym/metonym"
+  },
   "metonym": {
     "include": [
       "src/README.md",
