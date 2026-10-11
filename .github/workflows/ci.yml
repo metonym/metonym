@@ -39,7 +39,7 @@ jobs:
         run: bun test ./tests
 
       - name: Check documentation examples
-        run: bun run check
+        run: bun run check:docs
 
       - name: Smoke examples
         run: bun run examples
